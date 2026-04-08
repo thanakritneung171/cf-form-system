@@ -55,11 +55,28 @@ async function handleScheduled(env: Env): Promise<void> {
   console.log('Dispatcher cron at', new Date(now).toISOString());
 
   // อัพเดต status และ RETURNING id + form_type เพื่อ route ไป queue ที่ถูก
-  const result = await env.DB.prepare(
-    `UPDATE submissions SET status='dispatching', dispatched_at=?
-     WHERE id IN (SELECT id FROM submissions WHERE status='pending' LIMIT 1000)
-     RETURNING id, form_type`,
-  ).bind(now).all<{ id: string; form_type: string }>();
+  const result = await env.DB.prepare(`
+  WITH cte AS (
+    SELECT id
+    FROM submissions
+    WHERE 
+      status = 'pending'
+      OR (
+        status = 'dispatching'
+        AND dispatched_at < datetime('now', '-5 minutes')
+      )
+    LIMIT 1000
+  )
+  UPDATE submissions
+  SET 
+    status = 'dispatching',
+    dispatched_at = ?
+  WHERE id IN (SELECT id FROM cte)
+  AND status != 'done'
+  RETURNING id, form_type
+`)
+.bind(now)
+.all<{ id: string; form_type: string }>();
 
   if (result.results.length === 0) {
     console.log('No pending submissions');
