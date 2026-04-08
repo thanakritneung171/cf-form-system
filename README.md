@@ -2,7 +2,7 @@
 
 ระบบรับฟอร์มขนาดใหญ่บน Cloudflare ด้วย 3 Workers — รองรับ 10 ฟอร์ม, ไฟล์ upload, queue processing, admin dashboard, user management, และ webhooks
 
-## สถาปัตยกรรม
+## สถาปัตยกรรม 
 
 ```
 User → Worker 1 (Intake) → intake-queue → Worker 1 (consumer) → D1
