@@ -1,0 +1,155 @@
+{
+  // ใช้ $schema เพื่อให้ IDE แสดง autocomplete/validation
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  "name": "worker2-dispatcher",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+
+  // ======================================================
+  // ⚠️ แก้ไข database_id และ WORKER3_URL ด้วยค่าจริง
+  // ======================================================
+
+  // D1 Database — อ่าน submissions ที่ pending เพื่อ dispatch
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "form-system-db",
+      "database_id": "REPLACE_WITH_DATABASE_ID"
+    }
+  ],
+
+  // R2 Bucket — ดึงไฟล์แนบเพื่อส่งไปยัง Worker 3
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "form-system-uploads"
+    }
+  ],
+
+  "queues": {
+    // ===== Dispatch Queue Producers (10 ตัว — แยกต่อ form type) =====
+    // Producer binding ต้องตรงกับ FORMS_CONFIG[formType].queue.dispatchBinding ใน forms-config.ts
+    "producers": [
+      { "binding": "DISPATCH_CONTACT",            "queue": "dispatch-contact" },
+      { "binding": "DISPATCH_JOB_APPLICATION",    "queue": "dispatch-job-application" },
+      { "binding": "DISPATCH_COMPLAINT",          "queue": "dispatch-complaint" },
+      { "binding": "DISPATCH_EVENT_REGISTRATION", "queue": "dispatch-event-registration" },
+      { "binding": "DISPATCH_PRODUCT_INQUIRY",    "queue": "dispatch-product-inquiry" },
+      { "binding": "DISPATCH_WARRANTY_CLAIM",     "queue": "dispatch-warranty-claim" },
+      { "binding": "DISPATCH_NEWSLETTER",         "queue": "dispatch-newsletter" },
+      { "binding": "DISPATCH_FEEDBACK",           "queue": "dispatch-feedback" },
+      { "binding": "DISPATCH_PARTNERSHIP",        "queue": "dispatch-partnership" },
+      { "binding": "DISPATCH_INCIDENT_REPORT",    "queue": "dispatch-incident-report" },
+      // Webhook producer — ยิง event completion/failure ไปยัง webhook-queue
+      { "binding": "WEBHOOK_QUEUE",               "queue": "webhook-queue" }
+    ],
+
+    // ===== Dispatch Queue Consumers (10 ตัว) =====
+    // batch size/concurrency ปรับตามขนาดไฟล์และ SLA ของแต่ละฟอร์ม:
+    //   ฟอร์มที่มีไฟล์ใหญ่/SLA สูง → max_retries มากขึ้น, batch เล็กลง
+    "consumers": [
+      // contact — ข้อมูลเบา
+      {
+        "queue": "dispatch-contact",
+        "max_batch_size": 50,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-contact-dlq"
+      },
+      // job-application — PDF ใหญ่ base64 → timeout นาน, retry มาก
+      {
+        "queue": "dispatch-job-application",
+        "max_batch_size": 10,
+        "max_batch_timeout": 15,
+        "max_concurrency": 3,
+        "max_retries": 5,
+        "dead_letter_queue": "dispatch-job-application-dlq"
+      },
+      // complaint — รูปภาพ 1-3 ไฟล์
+      {
+        "queue": "dispatch-complaint",
+        "max_batch_size": 10,
+        "max_batch_timeout": 20,
+        "max_concurrency": 3,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-complaint-dlq"
+      },
+      // event-registration — volume สูง ข้อมูลเบา
+      {
+        "queue": "dispatch-event-registration",
+        "max_batch_size": 100,
+        "max_batch_timeout": 10,
+        "max_concurrency": 8,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-event-registration-dlq"
+      },
+      // product-inquiry — ข้อมูลเบา
+      {
+        "queue": "dispatch-product-inquiry",
+        "max_batch_size": 50,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-product-inquiry-dlq"
+      },
+      // warranty-claim — SLA สูง retry มากขึ้น
+      {
+        "queue": "dispatch-warranty-claim",
+        "max_batch_size": 15,
+        "max_batch_timeout": 15,
+        "max_concurrency": 3,
+        "max_retries": 5,
+        "dead_letter_queue": "dispatch-warranty-claim-dlq"
+      },
+      // newsletter — volume สูงมาก
+      {
+        "queue": "dispatch-newsletter",
+        "max_batch_size": 200,
+        "max_batch_timeout": 5,
+        "max_concurrency": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-newsletter-dlq"
+      },
+      // feedback — ข้อมูลเบา
+      {
+        "queue": "dispatch-feedback",
+        "max_batch_size": 50,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "dispatch-feedback-dlq"
+      },
+      // partnership — PDF ใหญ่ SLA สูง
+      {
+        "queue": "dispatch-partnership",
+        "max_batch_size": 5,
+        "max_batch_timeout": 20,
+        "max_concurrency": 2,
+        "max_retries": 5,
+        "dead_letter_queue": "dispatch-partnership-dlq"
+      },
+      // incident-report — รูปหลายไฟล์ใหญ่ SLA สูง
+      {
+        "queue": "dispatch-incident-report",
+        "max_batch_size": 5,
+        "max_batch_timeout": 20,
+        "max_concurrency": 2,
+        "max_retries": 5,
+        "dead_letter_queue": "dispatch-incident-report-dlq"
+      }
+    ]
+  },
+
+  // Cron: scan pending submissions ทุก 1 นาที แล้ว route ไปยัง dispatch queues
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  // Environment variables (ไม่ใช่ secrets — secrets ตั้งผ่าน wrangler secret put)
+  "vars": {
+    // ⚠️ แก้ URL Worker 3 จริงหลัง deploy Worker 3 แล้ว
+    "WORKER3_URL": "https://worker3-external-api.REPLACE_YOUR_SUBDOMAIN.workers.dev"
+  }
+}

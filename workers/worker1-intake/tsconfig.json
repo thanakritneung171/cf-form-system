@@ -1,18 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
+    "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
-    "types": ["@cloudflare/workers-types"],
+    "lib": ["esnext"],
     "strict": true,
     "noUnusedLocals": true,
     "noImplicitReturns": true,
+    // skipLibCheck ป้องกัน conflict ระหว่าง worker-configuration.d.ts กับ @cloudflare/workers-types
+    // ที่ src/ ยังอ้างถึงผ่าน triple-slash reference
     "skipLibCheck": true,
     "paths": {
       "shared": ["../../shared/src/index.ts"],
       "shared/*": ["../../shared/src/*"]
     }
   },
-  "include": ["src/**/*"]
+  // รวม worker-configuration.d.ts ที่ generate จาก `wrangler types`
+  // ไฟล์นี้มี typed Env interface + runtime types ครบจาก wrangler v4
+  "include": ["src/**/*.ts", "worker-configuration.d.ts"]
 }

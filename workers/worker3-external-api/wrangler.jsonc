@@ -1,0 +1,12 @@
+{
+  // ใช้ $schema เพื่อให้ IDE แสดง autocomplete/validation
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // Worker 3: Mock External API
+  // จำลอง API ปลายทาง — รับ payload จาก Worker 2 แล้วสุ่มตอบ 200/500/400
+  "name": "worker3-external-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23"
+
+  // Worker 3 ไม่มี bindings พิเศษ (ไม่ต้องการ D1/R2/Queue)
+}

@@ -7,8 +7,9 @@
     "dev:w2": "pnpm --filter worker2-dispatcher dev",
     "dev:w3": "pnpm --filter worker3-external-api dev",
     "deploy:all": "pnpm -r --parallel deploy",
+    "typegen": "pnpm -r cf-typegen",
+    "gen:wrangler": "tsx scripts/gen-wrangler.ts",
     "db:migrate": "wrangler d1 execute form-system-db --file=./schema/d1-schema.sql --remote",
-    "db:migrate:local": "wrangler d1 execute form-system-db --file=./schema/d1-schema.sql --local",
-    "gen:wrangler": "npx tsx scripts/gen-wrangler.ts"
+    "db:migrate:local": "wrangler d1 execute form-system-db --file=./schema/d1-schema.sql --local"
   }
 }

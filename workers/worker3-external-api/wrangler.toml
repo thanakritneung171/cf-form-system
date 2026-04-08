@@ -1,3 +1,0 @@
-name = "worker3-external-api"
-main = "src/index.ts"
-compatibility_date = "2024-09-23"

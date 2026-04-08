@@ -1,0 +1,160 @@
+{
+  // ใช้ $schema เพื่อให้ IDE แสดง autocomplete/validation
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  "name": "worker1-intake",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ======================================================
+  // ⚠️ แก้ไข database_id ด้วย ID จริงหลัง run setup.sh
+  // ======================================================
+
+  // D1 Database — เก็บ submissions, users, sessions, webhooks
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "form-system-db",
+      "database_id": "REPLACE_WITH_DATABASE_ID"
+    }
+  ],
+
+  // R2 Bucket — เก็บไฟล์แนบของทุก form type
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "form-system-uploads"
+    }
+  ],
+
+  "queues": {
+    // ===== Intake Queue Producers (10 ตัว — แยกต่อ form type) =====
+    // Producer binding ต้องตรงกับ FORMS_CONFIG[formType].queue.intakeBinding ใน forms-config.ts
+    "producers": [
+      { "binding": "INTAKE_CONTACT",             "queue": "intake-contact" },
+      { "binding": "INTAKE_JOB_APPLICATION",     "queue": "intake-job-application" },
+      { "binding": "INTAKE_COMPLAINT",           "queue": "intake-complaint" },
+      { "binding": "INTAKE_EVENT_REGISTRATION",  "queue": "intake-event-registration" },
+      { "binding": "INTAKE_PRODUCT_INQUIRY",     "queue": "intake-product-inquiry" },
+      { "binding": "INTAKE_WARRANTY_CLAIM",      "queue": "intake-warranty-claim" },
+      { "binding": "INTAKE_NEWSLETTER",          "queue": "intake-newsletter" },
+      { "binding": "INTAKE_FEEDBACK",            "queue": "intake-feedback" },
+      { "binding": "INTAKE_PARTNERSHIP",         "queue": "intake-partnership" },
+      { "binding": "INTAKE_INCIDENT_REPORT",     "queue": "intake-incident-report" },
+      // Webhook producer — ตัวเดียวใช้ร่วมกันทุก form type
+      { "binding": "WEBHOOK_QUEUE",              "queue": "webhook-queue" }
+    ],
+
+    // ===== Intake Queue Consumers (10 ตัว) + Webhook consumer =====
+    // batch size/concurrency ปรับตามลักษณะข้อมูลแต่ละฟอร์ม:
+    //   ข้อมูลเบา → batch ใหญ่, concurrency มาก
+    //   มีไฟล์ใหญ่ → batch เล็ก, concurrency น้อย
+    "consumers": [
+      // contact — ข้อมูลเบา volume ปานกลาง
+      {
+        "queue": "intake-contact",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-contact-dlq"
+      },
+      // job-application — มีไฟล์ PDF ใหญ่ → batch เล็กกว่า
+      {
+        "queue": "intake-job-application",
+        "max_batch_size": 20,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-job-application-dlq"
+      },
+      // complaint — มีรูปภาพ 1-3 ไฟล์
+      {
+        "queue": "intake-complaint",
+        "max_batch_size": 30,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-complaint-dlq"
+      },
+      // event-registration — burst ช่วงอีเวนต์ → batch ใหญ่
+      {
+        "queue": "intake-event-registration",
+        "max_batch_size": 200,
+        "max_batch_timeout": 5,
+        "max_concurrency": 15,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-event-registration-dlq"
+      },
+      // product-inquiry — ข้อมูลเบา เหมือน contact
+      {
+        "queue": "intake-product-inquiry",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-product-inquiry-dlq"
+      },
+      // warranty-claim — มีไฟล์ 1 ไฟล์ SLA สำคัญ
+      {
+        "queue": "intake-warranty-claim",
+        "max_batch_size": 30,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-warranty-claim-dlq"
+      },
+      // newsletter — volume สูงมาก payload เบา → batch ใหญ่มาก
+      {
+        "queue": "intake-newsletter",
+        "max_batch_size": 500,
+        "max_batch_timeout": 3,
+        "max_concurrency": 20,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-newsletter-dlq"
+      },
+      // feedback — ข้อมูลเบา
+      {
+        "queue": "intake-feedback",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_concurrency": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-feedback-dlq"
+      },
+      // partnership — PDF ใหญ่ volume น้อย
+      {
+        "queue": "intake-partnership",
+        "max_batch_size": 10,
+        "max_batch_timeout": 15,
+        "max_concurrency": 3,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-partnership-dlq"
+      },
+      // incident-report — รูปหลายไฟล์ใหญ่ → batch เล็กมาก
+      {
+        "queue": "intake-incident-report",
+        "max_batch_size": 10,
+        "max_batch_timeout": 10,
+        "max_concurrency": 3,
+        "max_retries": 3,
+        "dead_letter_queue": "intake-incident-report-dlq"
+      },
+      // webhook consumer — ตัวเดียว ส่ง HTTP ไปยัง webhook URLs
+      {
+        "queue": "webhook-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 10,
+        "max_concurrency": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "webhook-dlq"
+      }
+    ]
+  },
+
+  // Scheduled trigger: cleanup expired sessions ทุก 1 ชั่วโมง
+  "triggers": {
+    "crons": ["0 * * * *"]
+  }
+}
