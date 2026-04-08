@@ -10,6 +10,7 @@ import type {
   Webhook,
 } from 'shared/types';
 import { FORMS_CONFIG, isValidFormType } from 'shared/forms-config';
+import { log, chunkArray } from './helpers';
 
 // ===== Env bindings =====
 
@@ -32,21 +33,6 @@ export interface Env {
   WEBHOOK_QUEUE: Queue<WebhookMessage>;
 }
 
-// ===== Logger =====
-
-function log(level: 'INFO' | 'WARN' | 'ERROR', context: string, msg: string, extra?: unknown) {
-  const line = `[W2][${level}][${context}] ${msg}`;
-  if (extra !== undefined) {
-    if (level === 'ERROR') console.error(line, extra);
-    else if (level === 'WARN') console.warn(line, extra);
-    else console.log(line, extra);
-  } else {
-    if (level === 'ERROR') console.error(line);
-    else if (level === 'WARN') console.warn(line);
-    else console.log(line);
-  }
-}
-
 // helper: เลือก dispatch queue binding จาก form type
 function getDispatchQueue(formType: FormType, env: Env): Queue<DispatchMessage> {
   const bindingName = FORMS_CONFIG[formType].queue.dispatchBinding;
@@ -54,8 +40,6 @@ function getDispatchQueue(formType: FormType, env: Env): Queue<DispatchMessage> 
   if (!queue) throw new Error(`Dispatch queue binding not found: ${bindingName}`);
   return queue;
 }
-
-// ===== Crypto helpers =====
 
 function generateToken(bytes = 8): string {
   const arr = new Uint8Array(bytes);
@@ -140,16 +124,21 @@ async function handleScheduled(env: Env): Promise<void> {
       continue;
     }
 
-    try {
-      const dispatchQueue = getDispatchQueue(formType, env);
-      await dispatchQueue.sendBatch(ids.map(id => ({ body: { submission_id: id } })));
-      log('INFO', 'CRON', `sendBatch OK: ${ids.length} × [${formType}] → dispatch queue`);
-    } catch (err) {
-      log('ERROR', 'CRON', `sendBatch FAILED for [${formType}] — reverting ${ids.length} submissions to pending`, err);
-      const placeholders = ids.map(() => '?').join(',');
-      await env.DB.prepare(
-        `UPDATE submissions SET status='pending', dispatched_at=NULL WHERE id IN (${placeholders})`,
-      ).bind(...ids).run();
+    const dispatchQueue = getDispatchQueue(formType, env);
+    // Cloudflare Queue limit = 100 messages/batch, D1 limit = ~100 SQL variables
+    const chunks = chunkArray(ids, 100);
+
+    for (const chunk of chunks) {
+      try {
+        await dispatchQueue.sendBatch(chunk.map(id => ({ body: { submission_id: id } })));
+        log('INFO', 'CRON', `sendBatch OK: ${chunk.length} × [${formType}] → dispatch queue`);
+      } catch (err) {
+        log('ERROR', 'CRON', `sendBatch FAILED for [${formType}] — reverting ${chunk.length} submissions to pending`, err);
+        const placeholders = chunk.map(() => '?').join(',');
+        await env.DB.prepare(
+          `UPDATE submissions SET status='pending', dispatched_at=NULL WHERE id IN (${placeholders})`,
+        ).bind(...chunk).run();
+      }
     }
   }
 

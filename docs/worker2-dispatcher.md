@@ -43,17 +43,22 @@ Health check endpoint
    RETURNING id, form_type
 
 2. Group by form_type:
-   { contact: [id1, id2], newsletter: [id3, ...] }
+   { contact: [id1, id2, ...], newsletter: [id3, ...] }
 
-3. sendBatch ไปยัง dispatch queue ของแต่ละ form type:
-   DISPATCH_CONTACT.sendBatch([{ body: { submission_id: id1 } }, ...])
+3. แบ่ง ids เป็น chunks ละ 100 แล้ว sendBatch ทีละ chunk:
+   DISPATCH_CONTACT.sendBatch([100 messages])  ← chunk 1
+   DISPATCH_CONTACT.sendBatch([61 messages])   ← chunk 2 (ส่วนที่เหลือ)
    DISPATCH_NEWSLETTER.sendBatch([...])
    ...
 
-4. ถ้า sendBatch fail → revert status กลับ 'pending'
+4. ถ้า sendBatch fail → revert เฉพาะ chunk นั้นกลับ 'pending'
+   (ไม่กระทบ chunk อื่นที่ส่งสำเร็จแล้ว)
 ```
 
-**Batch limit:** ครั้งละไม่เกิน 1,000 submissions
+**Limits:**
+- D1 scan: ครั้งละไม่เกิน 1,000 submissions
+- Queue sendBatch: **ไม่เกิน 100 messages/batch** (Cloudflare Queue limit)
+- D1 revert: **ไม่เกิน 100 SQL variables/query** (D1 limit)
 
 ---
 
@@ -139,19 +144,26 @@ Worker 2 รับ message จาก 10 dispatch queues (`dispatch-contact`, `di
 ```
 pending
   │
-  │  (Cron ทุก 1 นาที)
+  │  (Cron ทุก 1 นาที — chunk 100/batch)
   ▼
 dispatching
   │
   ├── Worker 3 → 2xx ──────────────► complete ✓
   │                                  fire: submission.completed
   │
-  ├── Worker 3 → 5xx (retry ≤3) ──► dispatching → (retry) → complete หรือ failed
+  ├── Worker 3 → 5xx (retry ≤3) ──► dispatching (retry หลัง 30/60/300s)
+  │                                      └──► complete หรือ failed
   │
-  ├── Worker 3 → 5xx (retry >3) ──► failed ✗ (DLQ)
+  ├── Worker 3 → 5xx (retry >3) ──► failed ✗ (→ DLQ)
   │
-  └── Worker 3 → 4xx ─────────────► failed ✗
-                                     fire: submission.failed
+  ├── Worker 3 → 4xx ─────────────► failed ✗
+  │                                  fire: submission.failed
+  │
+  ├── Network error ───────────────► pending (reset, retry ผ่าน queue)
+  │
+  └── Stale >10 นาที (Cron recovery)
+       ├── retry_count < 3 ─────────► pending (reset)
+       └── retry_count ≥ 3 ─────────► failed ✗
 ```
 
 ---

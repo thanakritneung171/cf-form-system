@@ -81,7 +81,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 ```toml
 [vars]
-WORKER3_URL = "https://worker3-external-api.<your-subdomain>.workers.dev"
+WORKER3_URL = "https://worker3-external-api.cloudflare-training3.workers.dev"
 ```
 
 ### 4. Deploy
@@ -110,7 +110,7 @@ pnpm db:migrate
 
 ### 6. เปลี่ยน password admin
 
-เข้า `https://worker1-intake.<subdomain>.workers.dev/admin/login` แล้ว login ด้วย:
+เข้า `https://worker1-intake.cloudflare-training3.workers.dev/admin/login` แล้ว login ด้วย:
 - Username: `admin`
 - Password: `admin1234`
 
@@ -195,7 +195,7 @@ pnpm db:migrate:local
 
 ## Admin Dashboard
 
-URL: `https://worker1-intake.<subdomain>.workers.dev/admin`
+URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 ### Roles
 
@@ -276,8 +276,8 @@ intake-queue consumer (Worker 1)
   → fire submission.created webhook
 
 Worker 2 Cron (* * * * *)
-  → UPDATE status=dispatching WHERE status=pending LIMIT 200
-  → send IDs to dispatch-queue
+  → UPDATE status=dispatching WHERE status=pending LIMIT 1000
+  → chunk IDs เป็น 100/batch → send to dispatch-queue
 
 dispatch-queue consumer (Worker 2)
   → fetch submission + files from D1/R2
@@ -326,13 +326,29 @@ pnpm db:migrate:local # Apply schema to local D1
 
 **Queue ไม่ทำงาน:**
 ```bash
+# ดูสถานะ submissions
+wrangler d1 execute form-system-db --remote --command "SELECT status, COUNT(*) FROM submissions GROUP BY status"
 # ดู DLQ
 wrangler queues list
-wrangler d1 execute form-system-db --remote --command "SELECT status, COUNT(*) FROM submissions GROUP BY status"
 ```
 
 **Worker 2 cron ไม่ trigger:**
 - ตรวจ Cloudflare Dashboard → Workers → worker2-dispatcher → Triggers → Cron Triggers
+
+**Submissions ค้างที่ `dispatching` (retry_count = 1+):**
+```bash
+# ดู last_error เพื่อหาสาเหตุ
+wrangler d1 execute form-system-db --remote --command \
+  "SELECT id, form_type, retry_count, last_error FROM submissions WHERE status='dispatching' LIMIT 10"
+```
+สาเหตุที่พบบ่อย:
+- `HTTP 5xx` — Worker 3 ไม่ available หรือ URL ผิดใน `WORKER3_URL`
+- `HTTP 524/523` — Worker 3 ยังไม่ได้ deploy
+- Queue จะ retry อัตโนมัติ (30s → 60s → 300s) และ Cron recovery จะ reset หลัง 10 นาที
+
+**`sendBatch Payload Too Large` หรือ `D1 too many SQL variables`:**
+- เกิดเมื่อ submissions pending สะสมเยอะ (>100 ต่อ form type ในรอบเดียว)
+- โค้ดปัจจุบัน chunk อัตโนมัติ 100/batch แก้ปัญหานี้แล้ว
 
 **ไฟล์ไม่ขึ้น R2:**
 ```bash

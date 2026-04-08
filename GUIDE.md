@@ -354,7 +354,7 @@ GET /admin/files/:id → ต้องผ่าน auth ทุกครั้ง
 
 ## Admin Dashboard
 
-URL: `https://worker1-intake.<subdomain>.workers.dev/admin`
+URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 ### Roles
 

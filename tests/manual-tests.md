@@ -1,13 +1,13 @@
 # Manual Tests — CF Form System
 
-แทนที่ `https://worker1.xxx.workers.dev` ด้วย URL จริงของ Worker 1
+แทนที่ `https://worker1.cloudflare-training3.workers.dev` ด้วย URL จริงของ Worker 1
 
 ---
 
 ## Test 1: Submit ฟอร์ม text อย่างเดียว (contact)
 
 ```bash
-curl -X POST https://worker1.xxx.workers.dev/submit/contact \
+curl -X POST https://worker1.cloudflare-training3.workers.dev/submit/contact \
   -F "fullName=ทดสอบ ระบบ" \
   -F "email=test@example.com" \
   -F "phone=0812345678" \
@@ -25,7 +25,7 @@ curl -X POST https://worker1.xxx.workers.dev/submit/contact \
 # สร้าง test PDF ง่ายๆ ก่อน
 echo "%PDF-1.4 test resume" > /tmp/test-resume.pdf
 
-curl -X POST https://worker1.xxx.workers.dev/submit/job-application \
+curl -X POST https://worker1.cloudflare-training3.workers.dev/submit/job-application \
   -F "fullName=ผู้สมัคร ทดสอบ" \
   -F "email=applicant@example.com" \
   -F "phone=0823456789" \
@@ -46,7 +46,7 @@ convert -size 100x100 xc:red /tmp/evidence1.jpg 2>/dev/null || echo "fake jpg" >
 cp /tmp/evidence1.jpg /tmp/evidence2.jpg
 cp /tmp/evidence1.jpg /tmp/evidence3.jpg
 
-curl -X POST https://worker1.xxx.workers.dev/submit/incident-report \
+curl -X POST https://worker1.cloudflare-training3.workers.dev/submit/incident-report \
   -F "fullName=ผู้รายงาน" \
   -F "email=reporter@example.com" \
   -F "phone=0834567890" \
@@ -112,7 +112,7 @@ wrangler tail worker3-external-api
 
 ```bash
 #!/bin/bash
-WORKER_URL="https://worker1.xxx.workers.dev"
+WORKER_URL="https://worker1.cloudflare-training3.workers.dev"
 
 echo "Starting load test: 100 concurrent submits..."
 for i in $(seq 1 100); do
@@ -139,12 +139,12 @@ wrangler d1 execute form-system-db --remote \
 
 ```bash
 # Login ด้วย credential ถูก
-curl -c /tmp/cookies.txt -X POST https://worker1.xxx.workers.dev/admin/login \
+curl -c /tmp/cookies.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/login \
   -d "username=admin&password=admin1234&next=/admin/submissions" \
   -L -v 2>&1 | grep -E "< HTTP|Location|Set-Cookie"
 
 # Login ด้วย credential ผิด
-curl -X POST https://worker1.xxx.workers.dev/admin/login \
+curl -X POST https://worker1.cloudflare-training3.workers.dev/admin/login \
   -d "username=admin&password=wrongpassword" \
   -v 2>&1 | grep "< HTTP"
 ```
@@ -156,7 +156,7 @@ curl -X POST https://worker1.xxx.workers.dev/admin/login \
 ## Test 10: Access dashboard without cookie
 
 ```bash
-curl -v https://worker1.xxx.workers.dev/admin/submissions 2>&1 | grep "< HTTP\|Location"
+curl -v https://worker1.cloudflare-training3.workers.dev/admin/submissions 2>&1 | grep "< HTTP\|Location"
 ```
 
 **ผลที่คาดหวัง:** 302 redirect ไป `/admin/login`
@@ -167,7 +167,7 @@ curl -v https://worker1.xxx.workers.dev/admin/submissions 2>&1 | grep "< HTTP\|L
 
 ```bash
 # ใช้ cookie จาก Test 9
-curl -b /tmp/cookies.txt https://worker1.xxx.workers.dev/admin/submissions | grep -o "submission_id[^<]*" | head
+curl -b /tmp/cookies.txt https://worker1.cloudflare-training3.workers.dev/admin/submissions | grep -o "submission_id[^<]*" | head
 ```
 
 **ผลที่คาดหวัง:** หน้า HTML ที่มีตาราง submissions
@@ -177,7 +177,7 @@ curl -b /tmp/cookies.txt https://worker1.xxx.workers.dev/admin/submissions | gre
 ## Test 12: ดู Dispatched page (หลัง cron ทำงาน)
 
 ```bash
-curl -b /tmp/cookies.txt https://worker1.xxx.workers.dev/admin/dispatched | grep -c "complete\|failed"
+curl -b /tmp/cookies.txt https://worker1.cloudflare-training3.workers.dev/admin/dispatched | grep -c "complete\|failed"
 ```
 
 ---
@@ -191,7 +191,7 @@ wrangler d1 execute form-system-db --remote \
 
 # Download (ใช้ cookie)
 curl -b /tmp/cookies.txt \
-  "https://worker1.xxx.workers.dev/admin/files/<FILE_ID>" \
+  "https://worker1.cloudflare-training3.workers.dev/admin/files/<FILE_ID>" \
   -o /tmp/downloaded-file
 file /tmp/downloaded-file
 ```
@@ -208,7 +208,7 @@ wrangler d1 execute form-system-db --remote \
   --command "SELECT id FROM submissions WHERE status='failed' LIMIT 1"
 
 # Retry
-curl -b /tmp/cookies.txt -X POST https://worker1.xxx.workers.dev/admin/bulk-retry \
+curl -b /tmp/cookies.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/bulk-retry \
   -H "Content-Type: application/json" \
   -d '{"ids":["<SUBMISSION_ID>"]}'
 
@@ -224,7 +224,7 @@ wrangler d1 execute form-system-db --remote \
 ```bash
 for i in {1..6}; do
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-    https://worker1.xxx.workers.dev/admin/login \
+    https://worker1.cloudflare-training3.workers.dev/admin/login \
     -d "username=admin&password=wrong${i}")
   echo "Attempt $i: HTTP $HTTP_CODE"
 done
@@ -238,12 +238,12 @@ done
 
 ```bash
 # Login เป็น admin ก่อน
-curl -c /tmp/admin-cookies.txt -X POST https://worker1.xxx.workers.dev/admin/login \
+curl -c /tmp/admin-cookies.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/login \
   -d "username=admin&password=admin1234"
 
 # ดู form CSRF token แล้วสร้าง user
 # (ทำง่ายกว่าผ่าน UI dashboard)
-curl -b /tmp/admin-cookies.txt https://worker1.xxx.workers.dev/admin/users/new > /tmp/user-form.html
+curl -b /tmp/admin-cookies.txt https://worker1.cloudflare-training3.workers.dev/admin/users/new > /tmp/user-form.html
 grep -o 'name="_csrf" value="[^"]*"' /tmp/user-form.html
 ```
 
@@ -262,7 +262,7 @@ grep -o 'name="_csrf" value="[^"]*"' /tmp/user-form.html
 
 ```bash
 curl -b /tmp/cookies.txt \
-  "https://worker1.xxx.workers.dev/admin/export/submissions.csv" \
+  "https://worker1.cloudflare-training3.workers.dev/admin/export/submissions.csv" \
   -o /tmp/submissions.csv
 
 # ตรวจ BOM UTF-8
@@ -285,7 +285,7 @@ FAILED_IDS=$(wrangler d1 execute form-system-db --remote \
 
 echo "Failed IDs: $FAILED_IDS"
 
-curl -b /tmp/cookies.txt -X POST https://worker1.xxx.workers.dev/admin/bulk-retry \
+curl -b /tmp/cookies.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/bulk-retry \
   -H "Content-Type: application/json" \
   -d "{\"ids\": $FAILED_IDS}"
 ```
@@ -367,17 +367,17 @@ EOF
 
 ```bash
 # Login และเก็บ cookie
-curl -c /tmp/test-session.txt -X POST https://worker1.xxx.workers.dev/admin/login \
+curl -c /tmp/test-session.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/login \
   -d "username=admin&password=admin1234"
 
 # ดึง session ID
 cat /tmp/test-session.txt | grep admin_session
 
 # Logout
-curl -b /tmp/test-session.txt -X POST https://worker1.xxx.workers.dev/admin/logout
+curl -b /tmp/test-session.txt -X POST https://worker1.cloudflare-training3.workers.dev/admin/logout
 
 # ลอง access ด้วย cookie เดิม (ต้อง redirect ไป login)
-curl -b /tmp/test-session.txt -v https://worker1.xxx.workers.dev/admin/submissions 2>&1 | grep "< HTTP\|Location"
+curl -b /tmp/test-session.txt -v https://worker1.cloudflare-training3.workers.dev/admin/submissions 2>&1 | grep "< HTTP\|Location"
 ```
 
 **ผลที่คาดหวัง:** 302 redirect ไป /admin/login (session ถูก revoke แล้ว)
@@ -409,7 +409,7 @@ wrangler d1 execute form-system-db --remote --command "
 Submit ทั้ง 10 ฟอร์มแล้วตรวจสอบว่าข้อมูลกระจายถูก queue:
 
 ```bash
-WORKER_URL="https://worker1-intake.xxx.workers.dev"
+WORKER_URL="https://worker1-intake.cloudflare-training3.workers.dev"
 
 # Contact → intake-contact
 curl -s -X POST "${WORKER_URL}/submit/contact" \
@@ -482,7 +482,7 @@ wrangler d1 execute form-system-db --remote \
 
 ```bash
 # เข้าหน้า Queue Status
-curl -b /tmp/cookies.txt https://worker1-intake.xxx.workers.dev/admin/queues | \
+curl -b /tmp/cookies.txt https://worker1-intake.cloudflare-training3.workers.dev/admin/queues | \
   grep -o 'form_type[^<]*' | head -20
 ```
 
