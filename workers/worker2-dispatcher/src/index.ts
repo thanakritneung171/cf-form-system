@@ -32,6 +32,21 @@ export interface Env {
   WEBHOOK_QUEUE: Queue<WebhookMessage>;
 }
 
+// ===== Logger =====
+
+function log(level: 'INFO' | 'WARN' | 'ERROR', context: string, msg: string, extra?: unknown) {
+  const line = `[W2][${level}][${context}] ${msg}`;
+  if (extra !== undefined) {
+    if (level === 'ERROR') console.error(line, extra);
+    else if (level === 'WARN') console.warn(line, extra);
+    else console.log(line, extra);
+  } else {
+    if (level === 'ERROR') console.error(line);
+    else if (level === 'WARN') console.warn(line);
+    else console.log(line);
+  }
+}
+
 // helper: เลือก dispatch queue binding จาก form type
 function getDispatchQueue(formType: FormType, env: Env): Queue<DispatchMessage> {
   const bindingName = FORMS_CONFIG[formType].queue.dispatchBinding;
@@ -52,9 +67,52 @@ function generateToken(bytes = 8): string {
 
 async function handleScheduled(env: Env): Promise<void> {
   const now = Date.now();
-  console.log('Dispatcher cron at', new Date(now).toISOString());
+  log('INFO', 'CRON', `Started at ${new Date(now).toISOString()}`);
 
-  // อัพเดต status และ RETURNING id + form_type เพื่อ route ไป queue ที่ถูก
+  // ===== Recovery: rescue dispatching ที่ค้างนานกว่า 10 นาที =====
+  const staleThreshold = now - 10 * 60 * 1000;
+
+  // snapshot จำนวน dispatching ทั้งหมดตอนนี้ก่อน recovery
+  const dispatchingCount = await env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM submissions WHERE status='dispatching'`,
+  ).first<{ cnt: number }>();
+  log('INFO', 'CRON', `Current dispatching count: ${dispatchingCount?.cnt ?? 0}`);
+
+  // retry_count >= 3 → mark failed
+  const failedResult = await env.DB.prepare(`
+    UPDATE submissions
+    SET status='failed', completed_at=?, last_error='Dispatching timeout: max retries exceeded'
+    WHERE status='dispatching' AND dispatched_at < ? AND retry_count >= 3
+    RETURNING id, form_type, retry_count
+  `).bind(now, staleThreshold).all<{ id: string; form_type: string; retry_count: number }>();
+
+  if (failedResult.results.length > 0) {
+    log('WARN', 'CRON:RECOVERY', `Marked ${failedResult.results.length} stale dispatching → failed`);
+    for (const r of failedResult.results) {
+      log('WARN', 'CRON:RECOVERY', `  → failed: ${r.id} [${r.form_type}] retry_count=${r.retry_count}`);
+    }
+  }
+
+  // retry_count < 3 → reset กลับ pending + นับ retry
+  const resetResult = await env.DB.prepare(`
+    UPDATE submissions
+    SET status='pending', dispatched_at=NULL, retry_count=retry_count+1
+    WHERE status='dispatching' AND dispatched_at < ? AND retry_count < 3
+    RETURNING id, form_type, retry_count
+  `).bind(staleThreshold).all<{ id: string; form_type: string; retry_count: number }>();
+
+  if (resetResult.results.length > 0) {
+    log('WARN', 'CRON:RECOVERY', `Reset ${resetResult.results.length} stale dispatching → pending (will retry)`);
+    for (const r of resetResult.results) {
+      log('WARN', 'CRON:RECOVERY', `  → pending: ${r.id} [${r.form_type}] retry_count now=${r.retry_count}`);
+    }
+  }
+
+  if (failedResult.results.length === 0 && resetResult.results.length === 0) {
+    log('INFO', 'CRON:RECOVERY', 'No stale dispatching found');
+  }
+
+  // ===== Scan pending → dispatching =====
   const result = await env.DB.prepare(
     `UPDATE submissions SET status='dispatching', dispatched_at=?
      WHERE id IN (SELECT id FROM submissions WHERE status='pending' LIMIT 1000)
@@ -62,13 +120,13 @@ async function handleScheduled(env: Env): Promise<void> {
   ).bind(now).all<{ id: string; form_type: string }>();
 
   if (result.results.length === 0) {
-    console.log('No pending submissions');
+    log('INFO', 'CRON', 'No pending submissions to dispatch');
     return;
   }
 
-  console.log(`Dispatching ${result.results.length} submissions`);
+  log('INFO', 'CRON', `Picked up ${result.results.length} pending submissions → dispatching`);
 
-  // group by form_type เพื่อ sendBatch ไปยัง queue ที่ตรงกัน
+  // group by form_type
   const grouped = new Map<string, string[]>();
   for (const row of result.results) {
     const list = grouped.get(row.form_type) ?? [];
@@ -78,65 +136,81 @@ async function handleScheduled(env: Env): Promise<void> {
 
   for (const [formType, ids] of grouped) {
     if (!isValidFormType(formType)) {
-      console.warn(`Unknown form type in DB: ${formType}`);
+      log('WARN', 'CRON', `Unknown form type in DB: ${formType} — skipping ${ids.length} submissions`);
       continue;
     }
 
     try {
       const dispatchQueue = getDispatchQueue(formType, env);
-      // ใช้ sendBatch เพื่อ efficiency — ส่งหลาย message ในรอบเดียว
       await dispatchQueue.sendBatch(ids.map(id => ({ body: { submission_id: id } })));
-      console.log(`Sent ${ids.length} ${formType} submissions to dispatch queue`);
+      log('INFO', 'CRON', `sendBatch OK: ${ids.length} × [${formType}] → dispatch queue`);
     } catch (err) {
-      console.error(`Failed to send ${formType} to dispatch queue:`, err);
-      // revert status กลับ pending เพื่อให้ cron รอบหน้า retry
+      log('ERROR', 'CRON', `sendBatch FAILED for [${formType}] — reverting ${ids.length} submissions to pending`, err);
       const placeholders = ids.map(() => '?').join(',');
       await env.DB.prepare(
         `UPDATE submissions SET status='pending', dispatched_at=NULL WHERE id IN (${placeholders})`,
       ).bind(...ids).run();
     }
   }
+
+  log('INFO', 'CRON', 'Done');
 }
 
 // ===== Queue consumer: dispatch queues (10 queues → same handler) =====
 
 async function handleDispatchQueue(batch: MessageBatch<DispatchMessage>, env: Env): Promise<void> {
-  // แยก form type จากชื่อ queue: "dispatch-job-application" → "job-application"
-  const formTypeFromQueue = batch.queue.replace(/^dispatch-/, '');
-  console.log(`Processing dispatch batch [${batch.queue}]: ${batch.messages.length} messages`);
+  const ctx = `QUEUE:${batch.queue}`;
+  log('INFO', ctx, `Consumer triggered — ${batch.messages.length} messages`);
+
+  let ok = 0, retried = 0, failed = 0;
 
   for (const msg of batch.messages) {
+    const submissionId = msg.body.submission_id;
     try {
-      await processSubmission(msg.body.submission_id, env, msg);
+      const result = await processSubmission(submissionId, env, msg);
+      if (result === 'complete') ok++;
+      else if (result === 'retry') retried++;
+      else if (result === 'failed') failed++;
     } catch (err) {
-      console.error(`Error processing submission ${msg.body.submission_id} [${formTypeFromQueue}]:`, err);
+      log('ERROR', ctx, `Unhandled exception for submission ${submissionId}`, err);
       msg.retry({ delaySeconds: 30 });
+      retried++;
     }
   }
+
+  log('INFO', ctx, `Batch done — complete=${ok} retry=${retried} failed=${failed}`);
 }
 
 async function processSubmission(
   submissionId: string,
   env: Env,
   msg: Message<DispatchMessage>,
-): Promise<void> {
+): Promise<'complete' | 'retry' | 'failed'> {
+  const ctx = `PROCESS:${submissionId.slice(0, 8)}`;
   const now = Date.now();
 
+  // ===== 1. Load submission =====
+  log('INFO', ctx, 'Loading submission from D1');
   const submission = await env.DB.prepare('SELECT * FROM submissions WHERE id=?')
     .bind(submissionId).first<Submission>();
 
   if (!submission) {
-    console.error(`Submission ${submissionId} not found`);
+    log('WARN', ctx, 'Submission not found in D1 — ack and skip');
     msg.ack();
-    return;
+    return 'failed';
   }
 
+  log('INFO', ctx, `Loaded: form_type=${submission.form_type} status=${submission.status} retry_count=${submission.retry_count}`);
+
+  // ===== 2. Load files =====
   const files = await env.DB.prepare('SELECT * FROM submission_files WHERE submission_id=?')
     .bind(submissionId).all<SubmissionFile>();
 
+  log('INFO', ctx, `Files in D1: ${files.results.length}`);
+
   const data = JSON.parse(submission.data);
 
-  // แปลงไฟล์เป็น base64 เพื่อส่งใน JSON payload
+  // ===== 3. Fetch files from R2 → base64 =====
   const filePayloads: Array<{
     field_name: string;
     original_filename: string;
@@ -146,13 +220,15 @@ async function processSubmission(
   }> = [];
 
   for (const file of files.results) {
+    log('INFO', ctx, `Fetching R2: ${file.r2_key}`);
     const obj = await env.UPLOADS.get(file.r2_key);
     if (!obj) {
-      console.warn(`File ${file.r2_key} not found in R2, skipping`);
+      log('WARN', ctx, `R2 object not found: ${file.r2_key} — skipping file`);
       continue;
     }
     const bytes = await obj.arrayBuffer();
     const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    log('INFO', ctx, `R2 fetched: ${file.original_filename} (${file.size_bytes} bytes → base64 ${base64.length} chars)`);
     filePayloads.push({
       field_name: file.field_name,
       original_filename: file.original_filename,
@@ -162,6 +238,8 @@ async function processSubmission(
     });
   }
 
+  // ===== 4. POST to Worker 3 =====
+  const worker3Url = `${env.WORKER3_URL}/api/receive`;
   const payload = {
     submission_id: submissionId,
     form_type: submission.form_type,
@@ -170,45 +248,56 @@ async function processSubmission(
     files: filePayloads,
   };
 
-  // POST ไปยัง Worker 3
+  log('INFO', ctx, `POST → ${worker3Url} (payload files=${filePayloads.length})`);
+  const fetchStart = Date.now();
+
   let response: Response;
   try {
-    response = await fetch(`${env.WORKER3_URL}/api/receive`, {
+    response = await fetch(worker3Url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
+    const elapsed = Date.now() - fetchStart;
     const newRetryCount = (submission.retry_count ?? 0) + 1;
+    const errMsg = String(err);
+    log('ERROR', ctx, `Network error after ${elapsed}ms (retry_count → ${newRetryCount}): ${errMsg}`);
     await env.DB.prepare("UPDATE submissions SET retry_count=?, last_error=?, status='pending' WHERE id=?")
-      .bind(newRetryCount, String(err), submissionId).run();
-    console.error(`Network error for ${submissionId} [${submission.form_type}]:`, err);
+      .bind(newRetryCount, errMsg, submissionId).run();
     msg.retry({ delaySeconds: 30 });
-    return;
+    return 'retry';
   }
 
+  const elapsed = Date.now() - fetchStart;
+  log('INFO', ctx, `Worker 3 responded: HTTP ${response.status} in ${elapsed}ms`);
+
+  // ===== 5. Handle response =====
   if (response.ok) {
     await env.DB.prepare("UPDATE submissions SET status='complete', completed_at=? WHERE id=?")
       .bind(now, submissionId).run();
     msg.ack();
-    console.log(`✓ ${submissionId} [${submission.form_type}] completed`);
+    log('INFO', ctx, `✓ complete [${submission.form_type}]`);
     await fireWebhookEvent('submission.completed', submissionId, submission.form_type as FormType, env);
+    return 'complete';
   } else if (response.status >= 500) {
     const errBody = await response.text().catch(() => '');
     const newRetryCount = (submission.retry_count ?? 0) + 1;
+    const delay = [30, 60, 300][Math.min(newRetryCount - 1, 2)];
+    log('WARN', ctx, `✗ Worker 3 ${response.status} — retry #${newRetryCount} in ${delay}s | body: ${errBody.slice(0, 200)}`);
     await env.DB.prepare('UPDATE submissions SET retry_count=?, last_error=? WHERE id=?')
       .bind(newRetryCount, `HTTP ${response.status}: ${errBody.slice(0, 200)}`, submissionId).run();
-    const delay = [30, 60, 300][Math.min(newRetryCount - 1, 2)];
-    console.warn(`✗ ${submissionId} [${submission.form_type}] got ${response.status}, retry in ${delay}s`);
     msg.retry({ delaySeconds: delay });
+    return 'retry';
   } else {
     const errBody = await response.text().catch(() => '');
+    log('ERROR', ctx, `✗ Worker 3 ${response.status} (4xx permanent fail) | body: ${errBody.slice(0, 200)}`);
     await env.DB.prepare("UPDATE submissions SET status='failed', completed_at=?, last_error=? WHERE id=?")
       .bind(now, `HTTP ${response.status}: ${errBody.slice(0, 200)}`, submissionId).run();
     msg.ack();
-    console.error(`✗ ${submissionId} [${submission.form_type}] failed with ${response.status}`);
     await fireWebhookEvent('submission.failed', submissionId, submission.form_type as FormType, env);
+    return 'failed';
   }
 }
 
@@ -232,9 +321,10 @@ async function fireWebhookEvent(eventType: WebhookEvent, submissionId: string, f
       ).bind(deliveryId, wh.id, eventType, submissionId, Date.now()).run();
 
       await env.WEBHOOK_QUEUE.send({ webhook_id: wh.id, event_type: eventType, submission_id: submissionId, delivery_id: deliveryId, attempt: 0 });
+      log('INFO', `WEBHOOK:${submissionId.slice(0, 8)}`, `Queued ${eventType} → webhook ${wh.id}`);
     }
   } catch (err) {
-    console.error('fireWebhookEvent error:', err);
+    log('ERROR', 'WEBHOOK', 'fireWebhookEvent error', err);
   }
 }
 
@@ -255,13 +345,11 @@ export default {
     await handleScheduled(env);
   },
 
-  // queue handler รองรับ 10 dispatch queues
-  // batch.queue = "dispatch-contact", "dispatch-newsletter", etc.
   async queue(batch: MessageBatch<DispatchMessage>, env: Env): Promise<void> {
     if (batch.queue.startsWith('dispatch-')) {
       await handleDispatchQueue(batch, env);
     } else {
-      console.warn('Unknown queue in Worker 2:', batch.queue);
+      log('WARN', 'QUEUE', `Unknown queue: ${batch.queue} — ackAll`);
       batch.ackAll();
     }
   },

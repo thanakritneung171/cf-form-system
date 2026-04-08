@@ -1,0 +1,915 @@
+{
+  "info": {
+    "_postman_id": "cf-form-system-collection",
+    "name": "CF Form System",
+    "description": "API Collection สำหรับ CF Form System — Worker 1 (Intake + Admin) และ Worker 2 (Dispatcher Health)\n\nBase URLs:\n- Worker 1 (Local): http://localhost:8787\n- Worker 1 (Production): https://worker1-intake.<subdomain>.workers.dev\n- Worker 2 (Local): http://localhost:8788\n- Worker 2 (Production): https://worker2-dispatcher.<subdomain>.workers.dev",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "W1_BASE_URL",
+      "value": "http://localhost:8787",
+      "type": "string",
+      "description": "Worker 1 base URL"
+    },
+    {
+      "key": "W2_BASE_URL",
+      "value": "http://localhost:8788",
+      "type": "string",
+      "description": "Worker 2 base URL"
+    },
+    {
+      "key": "SESSION_COOKIE",
+      "value": "",
+      "type": "string",
+      "description": "ค่า admin_session cookie (copy มาจาก browser หลัง login)"
+    },
+    {
+      "key": "SUBMISSION_ID",
+      "value": "",
+      "type": "string",
+      "description": "Submission UUID สำหรับทดสอบ detail/retry"
+    },
+    {
+      "key": "USER_ID",
+      "value": "",
+      "type": "string",
+      "description": "User ID สำหรับทดสอบ edit/delete"
+    },
+    {
+      "key": "WEBHOOK_ID",
+      "value": "",
+      "type": "string",
+      "description": "Webhook ID สำหรับทดสอบ detail/toggle/delete/test"
+    },
+    {
+      "key": "FILE_ID",
+      "value": "",
+      "type": "string",
+      "description": "File ID สำหรับทดสอบ download"
+    }
+  ],
+  "item": [
+    {
+      "name": "Worker 2 — Dispatcher",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W2_BASE_URL}}/health",
+              "host": ["{{W2_BASE_URL}}"],
+              "path": ["health"]
+            },
+            "description": "ตรวจสอบสถานะ Worker 2"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"ok\": true, \"worker\": \"worker2-dispatcher\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Public Forms",
+      "item": [
+        {
+          "name": "Index Page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": [""]
+            },
+            "description": "หน้าแรก — แสดงฟอร์มทั้ง 10 ประเภท"
+          }
+        },
+        {
+          "name": "Form Page — contact",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/form/contact",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["form", "contact"]
+            },
+            "description": "หน้าฟอร์มติดต่อทั่วไป"
+          }
+        },
+        {
+          "name": "Form Page — job-application",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/form/job-application",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["form", "job-application"]
+            }
+          }
+        },
+        {
+          "name": "Form Page — complaint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/form/complaint",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["form", "complaint"]
+            }
+          }
+        },
+        {
+          "name": "Form Page — event-registration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/form/event-registration",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["form", "event-registration"]
+            }
+          }
+        },
+        {
+          "name": "Form Page — newsletter",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/form/newsletter",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["form", "newsletter"]
+            }
+          }
+        },
+        {
+          "name": "Submit — contact",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "สมชาย ใจดี", "type": "text" },
+                { "key": "email", "value": "somchai@example.com", "type": "text" },
+                { "key": "phone", "value": "0812345678", "type": "text" },
+                { "key": "subject", "value": "สอบถามข้อมูลสินค้า", "type": "text" },
+                { "key": "message", "value": "ต้องการสอบถามเกี่ยวกับสินค้าของบริษัท", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/contact",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "contact"]
+            },
+            "description": "ส่งฟอร์มติดต่อ — ไม่มีไฟล์แนบ\n\nResponse 200: { ok: true, submission_id: 'uuid' }\nResponse 422: { ok: false, errors: [...] }"
+          }
+        },
+        {
+          "name": "Submit — job-application (with PDF)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "สมหญิง รักงาน", "type": "text" },
+                { "key": "email", "value": "somying@example.com", "type": "text" },
+                { "key": "phone", "value": "0898765432", "type": "text" },
+                { "key": "position", "value": "Software Engineer", "type": "text" },
+                { "key": "experience", "value": "5", "type": "text" },
+                { "key": "coverLetter", "value": "ข้าพเจ้ามีความสนใจสมัครงานในตำแหน่งนี้...", "type": "text" },
+                {
+                  "key": "resume",
+                  "type": "file",
+                  "src": "",
+                  "description": "แนบไฟล์ PDF (ไม่เกิน 5MB)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/job-application",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "job-application"]
+            },
+            "description": "ส่งฟอร์มสมัครงาน — แนบ PDF resume"
+          }
+        },
+        {
+          "name": "Submit — complaint (with images)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "ประชา เดือดร้อน", "type": "text" },
+                { "key": "email", "value": "pracha@example.com", "type": "text" },
+                { "key": "phone", "value": "0823456789", "type": "text" },
+                { "key": "subject", "value": "สินค้าชำรุด", "type": "text" },
+                { "key": "description", "value": "ได้รับสินค้าแล้วพบว่าชำรุดเสียหาย...", "type": "text" },
+                {
+                  "key": "evidence",
+                  "type": "file",
+                  "src": "",
+                  "description": "รูปภาพหลักฐาน (สูงสุด 3 ไฟล์, image/* เท่านั้น)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/complaint",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "complaint"]
+            }
+          }
+        },
+        {
+          "name": "Submit — event-registration",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "สมศักดิ์ ร่วมงาน", "type": "text" },
+                { "key": "email", "value": "somsak@example.com", "type": "text" },
+                { "key": "phone", "value": "0856789012", "type": "text" },
+                { "key": "company", "value": "บริษัท ตัวอย่าง จำกัด", "type": "text" },
+                { "key": "numberOfAttendees", "value": "2", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/event-registration",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "event-registration"]
+            }
+          }
+        },
+        {
+          "name": "Submit — newsletter",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "email", "value": "subscriber@example.com", "type": "text" },
+                { "key": "fullName", "value": "ผู้สมัคร ข่าวสาร", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/newsletter",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "newsletter"]
+            }
+          }
+        },
+        {
+          "name": "Submit — feedback",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "ผู้ใช้ ทดสอบ", "type": "text" },
+                { "key": "email", "value": "feedback@example.com", "type": "text" },
+                { "key": "rating", "value": "5", "type": "text" },
+                { "key": "comment", "value": "บริการดีมาก ประทับใจมาก", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/feedback",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "feedback"]
+            }
+          }
+        },
+        {
+          "name": "Submit — product-inquiry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "ลูกค้า สอบถาม", "type": "text" },
+                { "key": "email", "value": "customer@example.com", "type": "text" },
+                { "key": "phone", "value": "0867890123", "type": "text" },
+                { "key": "productName", "value": "สินค้า ABC", "type": "text" },
+                { "key": "question", "value": "ต้องการทราบราคาและเงื่อนไขการซื้อ", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/product-inquiry",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "product-inquiry"]
+            }
+          }
+        },
+        {
+          "name": "Submit — warranty-claim (with file)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "เจ้าของ ประกัน", "type": "text" },
+                { "key": "email", "value": "warranty@example.com", "type": "text" },
+                { "key": "phone", "value": "0878901234", "type": "text" },
+                { "key": "productSerial", "value": "SN-12345678", "type": "text" },
+                { "key": "issueDescription", "value": "สินค้าเสียหายภายในระยะเวลาประกัน", "type": "text" },
+                { "key": "purchaseDate", "value": "2026-01-01", "type": "text" },
+                {
+                  "key": "document",
+                  "type": "file",
+                  "src": "",
+                  "description": "ใบเสร็จหรือรูปสินค้า (PDF หรือ image)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/warranty-claim",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "warranty-claim"]
+            }
+          }
+        },
+        {
+          "name": "Submit — partnership (with PDF)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "companyName", "value": "บริษัท พาร์ทเนอร์ จำกัด", "type": "text" },
+                { "key": "contactName", "value": "ผู้ติดต่อ หลัก", "type": "text" },
+                { "key": "email", "value": "partner@company.com", "type": "text" },
+                { "key": "phone", "value": "022345678", "type": "text" },
+                { "key": "businessType", "value": "Technology", "type": "text" },
+                { "key": "proposal", "value": "ต้องการเป็นพาร์ทเนอร์ด้าน...", "type": "text" },
+                {
+                  "key": "companyProfile",
+                  "type": "file",
+                  "src": "",
+                  "description": "Company Profile PDF"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/partnership",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "partnership"]
+            }
+          }
+        },
+        {
+          "name": "Submit — incident-report (with images)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "reporterName", "value": "ผู้รายงาน เหตุการณ์", "type": "text" },
+                { "key": "email", "value": "reporter@example.com", "type": "text" },
+                { "key": "phone", "value": "0889012345", "type": "text" },
+                { "key": "incidentDate", "value": "2026-04-08", "type": "text" },
+                { "key": "location", "value": "อาคาร A ชั้น 3", "type": "text" },
+                { "key": "description", "value": "เกิดเหตุ...", "type": "text" },
+                { "key": "severity", "value": "medium", "type": "text" },
+                {
+                  "key": "photos",
+                  "type": "file",
+                  "src": "",
+                  "description": "รูปถ่ายเหตุการณ์ (สูงสุด 5 ไฟล์, image/* เท่านั้น)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/submit/incident-report",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["submit", "incident-report"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin Auth",
+      "item": [
+        {
+          "name": "Login Page (GET)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/login",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login (POST)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "username", "value": "admin", "type": "text" },
+                { "key": "password", "value": "your-password", "type": "text" },
+                { "key": "next", "value": "/admin/submissions", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/login",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "login"]
+            },
+            "description": "Login เพื่อรับ session cookie\nRate limit: 5 ครั้ง / 10 นาที / IP\n\nหลัง login สำเร็จจะได้รับ Set-Cookie: admin_session=...\nให้ copy ค่า cookie มาใส่ใน variable SESSION_COOKIE"
+          }
+        },
+        {
+          "name": "Logout (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/logout",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin Dashboard",
+      "item": [
+        {
+          "name": "Submissions List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/submissions?page=1",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "submissions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "form_type", "value": "contact", "disabled": true },
+                { "key": "status", "value": "failed", "disabled": true },
+                { "key": "from", "value": "2026-04-01", "disabled": true },
+                { "key": "to", "value": "2026-04-08", "disabled": true },
+                { "key": "q", "value": "somchai", "disabled": true }
+              ]
+            },
+            "description": "ดู submissions ที่ pending/dispatching/failed\nQuery params: page, form_type, status, from, to, q"
+          }
+        },
+        {
+          "name": "Dispatched List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/dispatched?page=1",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "dispatched"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "form_type", "value": "contact", "disabled": true },
+                { "key": "status", "value": "complete", "disabled": true },
+                { "key": "from", "value": "2026-04-01", "disabled": true },
+                { "key": "to", "value": "2026-04-08", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submission Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/submissions/{{SUBMISSION_ID}}",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "submissions", "{{SUBMISSION_ID}}"]
+            },
+            "description": "ดูรายละเอียด submission + รายการไฟล์แนบ"
+          }
+        },
+        {
+          "name": "Download File",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/files/{{FILE_ID}}",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "files", "{{FILE_ID}}"]
+            },
+            "description": "ดาวน์โหลดไฟล์แนบ — stream จาก R2 ผ่าน auth"
+          }
+        },
+        {
+          "name": "Queue Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/queues",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "queues"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin API (JSON)",
+      "item": [
+        {
+          "name": "Stats (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/api/stats",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "api", "stats"]
+            },
+            "description": "คืน JSON สรุปจำนวน submissions แยกตาม status"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"pending\": 10,\n  \"dispatching\": 5,\n  \"complete\": 1000,\n  \"failed\": 3\n}"
+            }
+          ]
+        },
+        {
+          "name": "Bulk Retry (JSON)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\"{{SUBMISSION_ID}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/bulk-retry",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "bulk-retry"]
+            },
+            "description": "Retry submissions ที่ failed/complete → reset เป็น pending\nต้อง role: admin หรือ operator"
+          }
+        },
+        {
+          "name": "Export Submissions CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/export/submissions.csv",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "export", "submissions.csv"],
+              "query": [
+                { "key": "form_type", "value": "contact", "disabled": true },
+                { "key": "from", "value": "2026-04-01", "disabled": true },
+                { "key": "to", "value": "2026-04-08", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Dispatched CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/export/dispatched.csv",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "export", "dispatched.csv"],
+              "query": [
+                { "key": "form_type", "value": "contact", "disabled": true },
+                { "key": "from", "value": "2026-04-01", "disabled": true },
+                { "key": "to", "value": "2026-04-08", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin Profile",
+      "item": [
+        {
+          "name": "Profile Page",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/profile",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "_csrf", "value": "{{CSRF_TOKEN}}", "type": "text", "description": "ได้มาจาก hidden input ใน form" },
+                { "key": "current_password", "value": "old-password", "type": "text" },
+                { "key": "new_password", "value": "new-password-min8", "type": "text" },
+                { "key": "confirm_password", "value": "new-password-min8", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/profile/password",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "profile", "password"]
+            },
+            "description": "เปลี่ยนรหัสผ่าน — ต้องใช้ CSRF token จาก form\nหลังเปลี่ยนสำเร็จจะ logout ทุก session ของ user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin Users (admin only)",
+      "item": [
+        {
+          "name": "Users List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "New User Form (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users/new",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users", "new"]
+            }
+          }
+        },
+        {
+          "name": "Create User (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "_csrf", "value": "{{CSRF_TOKEN}}", "type": "text" },
+                { "key": "username", "value": "newuser", "type": "text" },
+                { "key": "email", "value": "newuser@example.com", "type": "text" },
+                { "key": "password", "value": "password123", "type": "text" },
+                { "key": "role", "value": "operator", "type": "text", "description": "admin | operator | viewer" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users/new",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users", "new"]
+            }
+          }
+        },
+        {
+          "name": "Edit User Form (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users/{{USER_ID}}/edit",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users", "{{USER_ID}}", "edit"]
+            }
+          }
+        },
+        {
+          "name": "Update User (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "_csrf", "value": "{{CSRF_TOKEN}}", "type": "text" },
+                { "key": "email", "value": "updated@example.com", "type": "text" },
+                { "key": "role", "value": "viewer", "type": "text" },
+                { "key": "is_active", "value": "1", "type": "text" },
+                { "key": "password", "value": "", "type": "text", "description": "ถ้าว่าง = ไม่เปลี่ยน password" }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users/{{USER_ID}}/edit",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users", "{{USER_ID}}", "edit"]
+            }
+          }
+        },
+        {
+          "name": "Delete User (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/users/{{USER_ID}}/delete",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "users", "{{USER_ID}}", "delete"]
+            },
+            "description": "Soft delete — set is_active=0 และลบ sessions ทั้งหมด"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker 1 — Admin Webhooks (admin only)",
+      "item": [
+        {
+          "name": "Webhooks List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks"]
+            }
+          }
+        },
+        {
+          "name": "New Webhook Form (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/new",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "new"]
+            }
+          }
+        },
+        {
+          "name": "Create Webhook (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "_csrf", "value": "{{CSRF_TOKEN}}", "type": "text" },
+                { "key": "name", "value": "My Webhook", "type": "text" },
+                { "key": "url", "value": "https://webhook.site/xxx", "type": "text" },
+                { "key": "events", "value": "submission.created", "type": "text" },
+                { "key": "events", "value": "submission.completed", "type": "text" },
+                { "key": "events", "value": "submission.failed", "type": "text" },
+                { "key": "form_types", "value": "contact", "type": "text", "description": "ถ้าไม่ระบุ = รับทุก form type" },
+                { "key": "form_types", "value": "newsletter", "type": "text", "disabled": true }
+              ]
+            },
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/new",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "new"]
+            },
+            "description": "สร้าง webhook — secret จะแสดงเพียงครั้งเดียว ให้บันทึกไว้"
+          }
+        },
+        {
+          "name": "Webhook Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/{{WEBHOOK_ID}}",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "{{WEBHOOK_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Webhook Active/Inactive",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/{{WEBHOOK_ID}}/toggle",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "{{WEBHOOK_ID}}", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "Send Test Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/{{WEBHOOK_ID}}/test",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "{{WEBHOOK_ID}}", "test"]
+            },
+            "description": "ส่ง test event submission.created ไปยัง webhook URL\nพร้อม HMAC-SHA256 signature"
+          }
+        },
+        {
+          "name": "Delete Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Cookie", "value": "admin_session={{SESSION_COOKIE}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{W1_BASE_URL}}/admin/webhooks/{{WEBHOOK_ID}}/delete",
+              "host": ["{{W1_BASE_URL}}"],
+              "path": ["admin", "webhooks", "{{WEBHOOK_ID}}", "delete"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
