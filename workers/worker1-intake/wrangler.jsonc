@@ -81,7 +81,7 @@
       // event-registration — burst ช่วงอีเวนต์ → batch ใหญ่
       {
         "queue": "intake-event-registration",
-        "max_batch_size": 200,
+        "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_concurrency": 15,
         "max_retries": 3,
@@ -108,7 +108,7 @@
       // newsletter — volume สูงมาก payload เบา → batch ใหญ่มาก
       {
         "queue": "intake-newsletter",
-        "max_batch_size": 500,
+        "max_batch_size": 100,
         "max_batch_timeout": 3,
         "max_concurrency": 20,
         "max_retries": 3,

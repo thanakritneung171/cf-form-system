@@ -106,7 +106,7 @@
       // newsletter — volume สูงมาก
       {
         "queue": "dispatch-newsletter",
-        "max_batch_size": 200,
+        "max_batch_size": 100,
         "max_batch_timeout": 5,
         "max_concurrency": 10,
         "max_retries": 3,
