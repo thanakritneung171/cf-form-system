@@ -1,0 +1,37 @@
+// 05-soak.js — Soak Test (Endurance Test)
+// 200 VU คงที่ นาน 2 ชั่วโมง — ทดสอบ memory leak, resource exhaustion, connection pool หมด
+//
+// ⚠️  คำเตือน: test นี้จะสร้าง record ใน D1 ประมาณ 200 VU × 7200s / 1.5s ≈ ~960,000 rows
+// ต้อง cleanup หลัง run โดยเรียก POST /admin/loadtest/cleanup (ต้องล็อกอิน admin ก่อน)
+// หรือเรียก: curl -X POST http://localhost:8787/admin/loadtest/cleanup -b "session=..."
+
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { BASE_URL, commonHeaders } from '../config.js';
+import { buildPayload } from '../helpers/mock-data.js';
+
+export const options = {
+  vus: 200,
+  duration: '2h',
+  thresholds: {
+    http_req_failed: ['rate<0.01'],
+    // p95 ควรคงที่ตลอด 2 ชม. — ถ้าเพิ่มขึ้นเรื่อยๆ = memory leak
+    http_req_duration: ['p(95)<2000'],
+  },
+};
+
+// mix ฟอร์มเบาเพื่อยืดระยะเวลาได้นานโดยไม่สร้าง file ขยะ
+const FORMS = ['contact', 'newsletter', 'feedback', 'product-inquiry', 'event-registration'];
+
+export default function () {
+  const formType = FORMS[__VU % FORMS.length];
+  const res = http.post(`${BASE_URL}/submit/${formType}`, buildPayload(formType, __VU, __ITER), {
+    headers: commonHeaders,
+  });
+
+  check(res, {
+    'status 200': (r) => r.status === 200,
+  });
+
+  sleep(1.5);
+}
