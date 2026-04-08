@@ -150,6 +150,6 @@
   // Environment variables (ไม่ใช่ secrets — secrets ตั้งผ่าน wrangler secret put)
   "vars": {
     // ⚠️ แก้ URL Worker 3 จริงหลัง deploy Worker 3 แล้ว
-    "WORKER3_URL": "https://worker3-external-api.REPLACE_YOUR_SUBDOMAIN.workers.dev"
+    "WORKER3_URL": "https://worker3-external-api.cloudflare-training3.workers.dev"
   }
 }
