@@ -1,0 +1,23 @@
+/* style.css — Public form pages */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b;min-height:100vh}
+header{background:#fff;border-bottom:1px solid #e2e8f0;padding:1.5rem 1rem;max-width:700px;margin:0 auto}
+header .back{color:#2563eb;text-decoration:none;font-size:0.875rem;display:inline-block;margin-bottom:0.75rem}
+header .back:hover{text-decoration:underline}
+header h1{margin-bottom:0.25rem;font-size:1.5rem}
+header p{color:#64748b;font-size:0.9rem}
+main{max-width:700px;margin:2rem auto;padding:0 1rem 3rem}
+form{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+label{display:flex;flex-direction:column;gap:0.35rem;font-size:0.9rem;font-weight:500;color:#374151}
+input,textarea,select{border:1px solid #cbd5e1;border-radius:6px;padding:0.5rem 0.75rem;font-size:0.95rem;font-family:inherit;width:100%;outline:none;transition:border-color .15s,box-shadow .15s;background:#fff;color:#1e293b}
+input:focus,textarea:focus,select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+input[type=file]{padding:0.4rem;cursor:pointer}
+input[type=checkbox]{width:auto;margin-right:0.35rem;cursor:pointer;accent-color:#2563eb}
+fieldset{border:1px solid #e2e8f0;border-radius:8px;padding:1rem}
+legend{font-weight:600;padding:0 0.5rem;font-size:0.9rem;color:#374151}
+button[type=submit]{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:0.75rem 1.5rem;font-size:1rem;font-weight:600;cursor:pointer;transition:background .15s;margin-top:0.5rem;align-self:flex-start}
+button[type=submit]:hover{background:#1d4ed8}
+button[type=submit]:disabled{background:#94a3b8;cursor:not-allowed}
+small{color:#64748b;font-size:0.8rem;margin-top:0.1rem}
+#result{margin-top:1rem;padding:1rem;border-radius:8px;font-size:0.95rem}
+@media(max-width:600px){main{padding:0 0.75rem 2rem}form{padding:1.25rem}}

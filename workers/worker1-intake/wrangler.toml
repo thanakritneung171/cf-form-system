@@ -1,0 +1,160 @@
+name = "worker1-intake"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ======================================================
+# ⚠️ แก้ไข database_id ด้วย ID จริงหลัง run setup.sh
+# ======================================================
+
+[[d1_databases]]
+binding = "DB"
+database_name = "form-system-db"
+database_id = "REPLACE_WITH_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "form-system-uploads"
+
+# ===== Intake Queue Producers (10 ตัว — แยกต่อ form type) =====
+
+[[queues.producers]]
+binding = "INTAKE_CONTACT"
+queue = "intake-contact"
+
+[[queues.producers]]
+binding = "INTAKE_JOB_APPLICATION"
+queue = "intake-job-application"
+
+[[queues.producers]]
+binding = "INTAKE_COMPLAINT"
+queue = "intake-complaint"
+
+[[queues.producers]]
+binding = "INTAKE_EVENT_REGISTRATION"
+queue = "intake-event-registration"
+
+[[queues.producers]]
+binding = "INTAKE_PRODUCT_INQUIRY"
+queue = "intake-product-inquiry"
+
+[[queues.producers]]
+binding = "INTAKE_WARRANTY_CLAIM"
+queue = "intake-warranty-claim"
+
+[[queues.producers]]
+binding = "INTAKE_NEWSLETTER"
+queue = "intake-newsletter"
+
+[[queues.producers]]
+binding = "INTAKE_FEEDBACK"
+queue = "intake-feedback"
+
+[[queues.producers]]
+binding = "INTAKE_PARTNERSHIP"
+queue = "intake-partnership"
+
+[[queues.producers]]
+binding = "INTAKE_INCIDENT_REPORT"
+queue = "intake-incident-report"
+
+# Webhook producer
+[[queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "webhook-queue"
+
+# ===== Intake Queue Consumers (10 ตัว) =====
+# batch size/concurrency ปรับตามลักษณะข้อมูลของแต่ละฟอร์ม
+
+[[queues.consumers]]
+queue = "intake-contact"
+max_batch_size = 100
+max_batch_timeout = 5
+max_concurrency = 10
+max_retries = 3
+dead_letter_queue = "intake-contact-dlq"
+
+[[queues.consumers]]
+queue = "intake-job-application"
+max_batch_size = 20
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "intake-job-application-dlq"
+
+[[queues.consumers]]
+queue = "intake-complaint"
+max_batch_size = 30
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "intake-complaint-dlq"
+
+[[queues.consumers]]
+queue = "intake-event-registration"
+max_batch_size = 200
+max_batch_timeout = 5
+max_concurrency = 15
+max_retries = 3
+dead_letter_queue = "intake-event-registration-dlq"
+
+[[queues.consumers]]
+queue = "intake-product-inquiry"
+max_batch_size = 100
+max_batch_timeout = 5
+max_concurrency = 10
+max_retries = 3
+dead_letter_queue = "intake-product-inquiry-dlq"
+
+[[queues.consumers]]
+queue = "intake-warranty-claim"
+max_batch_size = 30
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "intake-warranty-claim-dlq"
+
+[[queues.consumers]]
+queue = "intake-newsletter"
+max_batch_size = 500
+max_batch_timeout = 3
+max_concurrency = 20
+max_retries = 3
+dead_letter_queue = "intake-newsletter-dlq"
+
+[[queues.consumers]]
+queue = "intake-feedback"
+max_batch_size = 100
+max_batch_timeout = 5
+max_concurrency = 10
+max_retries = 3
+dead_letter_queue = "intake-feedback-dlq"
+
+[[queues.consumers]]
+queue = "intake-partnership"
+max_batch_size = 10
+max_batch_timeout = 15
+max_concurrency = 3
+max_retries = 3
+dead_letter_queue = "intake-partnership-dlq"
+
+[[queues.consumers]]
+queue = "intake-incident-report"
+max_batch_size = 10
+max_batch_timeout = 10
+max_concurrency = 3
+max_retries = 3
+dead_letter_queue = "intake-incident-report-dlq"
+
+# Webhook consumer
+[[queues.consumers]]
+queue = "webhook-queue"
+max_batch_size = 10
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "webhook-dlq"
+
+# Scheduled trigger: cleanup expired sessions ทุก 1 ชั่วโมง
+[triggers]
+crons = ["0 * * * *"]

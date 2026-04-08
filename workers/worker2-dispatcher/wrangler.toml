@@ -1,0 +1,153 @@
+name = "worker2-dispatcher"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# ======================================================
+# ⚠️ แก้ไข database_id และ WORKER3_URL ด้วยค่าจริง
+# ======================================================
+
+[[d1_databases]]
+binding = "DB"
+database_name = "form-system-db"
+database_id = "REPLACE_WITH_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "form-system-uploads"
+
+# ===== Dispatch Queue Producers (10 ตัว) =====
+
+[[queues.producers]]
+binding = "DISPATCH_CONTACT"
+queue = "dispatch-contact"
+
+[[queues.producers]]
+binding = "DISPATCH_JOB_APPLICATION"
+queue = "dispatch-job-application"
+
+[[queues.producers]]
+binding = "DISPATCH_COMPLAINT"
+queue = "dispatch-complaint"
+
+[[queues.producers]]
+binding = "DISPATCH_EVENT_REGISTRATION"
+queue = "dispatch-event-registration"
+
+[[queues.producers]]
+binding = "DISPATCH_PRODUCT_INQUIRY"
+queue = "dispatch-product-inquiry"
+
+[[queues.producers]]
+binding = "DISPATCH_WARRANTY_CLAIM"
+queue = "dispatch-warranty-claim"
+
+[[queues.producers]]
+binding = "DISPATCH_NEWSLETTER"
+queue = "dispatch-newsletter"
+
+[[queues.producers]]
+binding = "DISPATCH_FEEDBACK"
+queue = "dispatch-feedback"
+
+[[queues.producers]]
+binding = "DISPATCH_PARTNERSHIP"
+queue = "dispatch-partnership"
+
+[[queues.producers]]
+binding = "DISPATCH_INCIDENT_REPORT"
+queue = "dispatch-incident-report"
+
+# Webhook producer
+[[queues.producers]]
+binding = "WEBHOOK_QUEUE"
+queue = "webhook-queue"
+
+# ===== Dispatch Queue Consumers (10 ตัว) =====
+
+[[queues.consumers]]
+queue = "dispatch-contact"
+max_batch_size = 50
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "dispatch-contact-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-job-application"
+max_batch_size = 10
+max_batch_timeout = 15
+max_concurrency = 3
+max_retries = 5
+dead_letter_queue = "dispatch-job-application-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-complaint"
+max_batch_size = 10
+max_batch_timeout = 20
+max_concurrency = 3
+max_retries = 3
+dead_letter_queue = "dispatch-complaint-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-event-registration"
+max_batch_size = 100
+max_batch_timeout = 10
+max_concurrency = 8
+max_retries = 3
+dead_letter_queue = "dispatch-event-registration-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-product-inquiry"
+max_batch_size = 50
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "dispatch-product-inquiry-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-warranty-claim"
+max_batch_size = 15
+max_batch_timeout = 15
+max_concurrency = 3
+max_retries = 5
+dead_letter_queue = "dispatch-warranty-claim-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-newsletter"
+max_batch_size = 200
+max_batch_timeout = 5
+max_concurrency = 10
+max_retries = 3
+dead_letter_queue = "dispatch-newsletter-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-feedback"
+max_batch_size = 50
+max_batch_timeout = 10
+max_concurrency = 5
+max_retries = 3
+dead_letter_queue = "dispatch-feedback-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-partnership"
+max_batch_size = 5
+max_batch_timeout = 20
+max_concurrency = 2
+max_retries = 5
+dead_letter_queue = "dispatch-partnership-dlq"
+
+[[queues.consumers]]
+queue = "dispatch-incident-report"
+max_batch_size = 5
+max_batch_timeout = 20
+max_concurrency = 2
+max_retries = 5
+dead_letter_queue = "dispatch-incident-report-dlq"
+
+# Cron: scan pending submissions ทุก 1 นาที
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# ⚠️ แก้ URL Worker 3 จริงหลัง deploy Worker 3
+WORKER3_URL = "https://worker3-external-api.REPLACE_YOUR_SUBDOMAIN.workers.dev"
