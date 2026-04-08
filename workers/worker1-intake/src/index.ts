@@ -50,6 +50,7 @@ import {
   webhookFormPage,
   webhookDetailPage,
   queueStatusPage,
+  loadtestPage,
 } from './html';
 
 // ===== Env bindings =====
@@ -72,6 +73,7 @@ export interface Env {
   INTAKE_INCIDENT_REPORT: Queue<IntakeMessage>;
   // Webhook queue producer
   WEBHOOK_QUEUE: Queue<WebhookMessage>;
+
 }
 
 // helper: เลือก intake queue binding ตาม form type
@@ -975,6 +977,72 @@ button[type=submit]:disabled{background:#94a3b8;cursor:not-allowed}
 small{color:#64748b;font-size:0.8rem}
 `.trim();
 
+// ===== Load Test handlers =====
+
+async function handleLoadTest(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin', 'operator']);
+  if (result instanceof Response) return result;
+  const user = result as User;
+  return html(loadtestPage(user));
+}
+
+async function handleLoadTestCleanup(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin', 'operator']);
+  if (result instanceof Response) return result;
+
+  // Find submission IDs matching LoadTest pattern
+  const subRows = await env.DB.prepare(
+    `SELECT id FROM submissions WHERE json_extract(data, '$.fullName') LIKE 'LoadTest User %'`
+  ).all<{ id: string }>();
+  const ids = (subRows.results ?? []).map(r => r.id);
+
+  let filesDeleted = 0;
+  let r2Deleted = 0;
+
+  if (ids.length > 0) {
+    // Get R2 keys before deleting files
+    const placeholders = ids.map(() => '?').join(',');
+    const fileRows = await env.DB.prepare(
+      `SELECT r2_key FROM submission_files WHERE submission_id IN (${placeholders})`
+    ).bind(...ids).all<{ r2_key: string }>();
+    const r2Keys = (fileRows.results ?? []).map(r => r.r2_key);
+
+    // Delete from D1
+    await env.DB.prepare(
+      `DELETE FROM submission_files WHERE submission_id IN (${placeholders})`
+    ).bind(...ids).run();
+    filesDeleted = fileRows.results?.length ?? 0;
+
+    await env.DB.prepare(
+      `DELETE FROM submissions WHERE id IN (${placeholders})`
+    ).bind(...ids).run();
+
+    // Delete from R2
+    for (const key of r2Keys) {
+      try {
+        await env.UPLOADS.delete(key);
+        r2Deleted++;
+      } catch {
+        // best-effort
+      }
+    }
+
+    // Also sweep R2 for any mock files by prefix pattern
+    let cursor: string | undefined;
+    do {
+      const list = await env.UPLOADS.list({ prefix: 'submissions/', cursor });
+      for (const obj of list.objects) {
+        if (obj.key.includes('/mock-')) {
+          try { await env.UPLOADS.delete(obj.key); r2Deleted++; } catch { /* ignore */ }
+        }
+      }
+      cursor = list.truncated ? list.cursor : undefined;
+    } while (cursor);
+  }
+
+  return json({ ok: true, deleted: { submissions: ids.length, files: filesDeleted, r2Objects: r2Deleted } });
+}
+
 // ===== Main router =====
 
 async function handleFetch(req: Request, env: Env): Promise<Response> {
@@ -983,6 +1051,10 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   const method = req.method;
 
   if (path === '/style.css') return new Response(CSS, { headers: { 'Content-Type': 'text/css' } });
+
+  // load test
+  if (path === '/loadtest') return handleLoadTest(req, env);
+  if (path === '/admin/loadtest/cleanup' && method === 'POST') return handleLoadTestCleanup(req, env);
 
   // public routes
   if (path === '/') return handleIndex(req, env);

@@ -59,6 +59,9 @@ export function indexPage(): string {
     <h1>📄 แบบฟอร์มออนไลน์</h1>
     <p>เลือกแบบฟอร์มที่ต้องการกรอก</p>
   </div>
+  <div style="max-width:960px;margin:0 auto 1rem;text-align:right">
+    <a href="/loadtest" style="font-size:0.82rem;color:#6b7280;text-decoration:none;border:1px solid #e5e7eb;padding:0.3rem 0.75rem;border-radius:99px">🔬 Load Test</a>
+  </div>
   <div class="grid">
     ${FORM_TYPES.map(type => {
       const cfg = FORMS_CONFIG[type];
