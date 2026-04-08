@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: worker1-intake",
+      "type": "shell",
+      "command": "pnpm --filter worker1-intake dev",
+      "isBackground": true,
+      "presentation": {
+        "group": "workers",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: worker2-dispatcher",
+      "type": "shell",
+      "command": "pnpm --filter worker2-dispatcher dev",
+      "isBackground": true,
+      "presentation": {
+        "group": "workers",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: worker3-external-api",
+      "type": "shell",
+      "command": "pnpm --filter worker3-external-api dev",
+      "isBackground": true,
+      "presentation": {
+        "group": "workers",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: all workers",
+      "dependsOn": [
+        "dev: worker1-intake",
+        "dev: worker2-dispatcher",
+        "dev: worker3-external-api"
+      ],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

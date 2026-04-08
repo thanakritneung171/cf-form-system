@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "concurrently -n W1,W2,W3 -c blue,green,yellow \"pnpm dev:w1\" \"pnpm dev:w2\" \"pnpm dev:w3\"",
     "dev:w1": "pnpm --filter worker1-intake dev",
     "dev:w2": "pnpm --filter worker2-dispatcher dev",
     "dev:w3": "pnpm --filter worker3-external-api dev",
-    "deploy:all": "pnpm -r --parallel deploy",
+    "deploy:all": "pnpm -r run deploy",
     "typegen": "pnpm -r cf-typegen",
     "gen:wrangler": "tsx scripts/gen-wrangler.ts",
     "db:migrate": "wrangler d1 execute form-system-db --file=./schema/d1-schema.sql --remote",
     "db:migrate:local": "wrangler d1 execute form-system-db --file=./schema/d1-schema.sql --local"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

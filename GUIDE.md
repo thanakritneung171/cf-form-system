@@ -500,7 +500,11 @@ cf-form-system/
 ## คำสั่งที่ใช้บ่อย
 
 ```bash
-# Dev
+# Dev — รัน 3 workers พร้อมกัน
+pnpm dev             # concurrently ใน terminal เดียว (แยก log ด้วยสี)
+                     # หรือกด Ctrl+Shift+B ใน VSCode เพื่อเปิดแยก 3 terminal panels
+
+# Dev — รันทีละตัว
 pnpm dev:w1          # Worker 1 ที่ http://localhost:8787
 pnpm dev:w2          # Worker 2 ที่ http://localhost:8788
 pnpm dev:w3          # Worker 3 ที่ http://localhost:8789

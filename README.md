@@ -88,13 +88,13 @@ WORKER3_URL = "https://worker3-external-api.<your-subdomain>.workers.dev"
 
 ```bash
 # Deploy Worker 3 ก่อน (เพื่อได้ URL)
-pnpm --filter worker3-external-api deploy
+pnpm --filter worker3-external-api run deploy
 
 # อัพเดต WORKER3_URL ใน wrangler.toml ของ Worker 2 แล้ว:
-pnpm --filter worker2-dispatcher deploy
+pnpm --filter worker2-dispatcher run deploy
 
 # Deploy Worker 1
-pnpm --filter worker1-intake deploy
+pnpm --filter worker1-intake run deploy
 ```
 
 หรือ deploy ทั้งหมดพร้อมกัน:
@@ -115,6 +115,39 @@ pnpm db:migrate
 - Password: `admin1234`
 
 **เปลี่ยน password ทันทีหลัง login ครั้งแรก!**
+
+---
+
+## Development
+
+### รัน workers ทั้ง 3 ตัวพร้อมกัน
+
+```bash
+pnpm dev
+```
+
+รันทั้ง 3 workers ใน terminal เดียว แยก log ด้วย prefix สี:
+- `[W1]` worker1-intake → http://localhost:8787
+- `[W2]` worker2-dispatcher → http://localhost:8788
+- `[W3]` worker3-external-api → http://localhost:8789
+
+หยุดทั้งหมดด้วย `Ctrl+C` ครั้งเดียว
+
+### รันแยก 3 terminal panels ใน VSCode
+
+กด `Ctrl+Shift+B` → จะเปิด 3 terminal panels แยกกัน แต่ละอันรัน worker คนละตัว
+
+หยุด:
+- Focus ที่แต่ละ terminal panel แล้วกด `Ctrl+C`
+- หรือ Command Palette → `Tasks: Terminate Task` → `All Running Tasks`
+
+### รันทีละตัว
+
+```bash
+pnpm dev:w1    # worker1-intake     → http://localhost:8787
+pnpm dev:w2    # worker2-dispatcher → http://localhost:8788
+pnpm dev:w3    # worker3-external-api → http://localhost:8789
+```
 
 ---
 
@@ -276,6 +309,7 @@ webhook-queue consumer (Worker 1)
 ## Scripts
 
 ```bash
+pnpm dev             # รัน 3 workers พร้อมกัน (concurrently)
 pnpm dev:w1          # Dev Worker 1
 pnpm dev:w2          # Dev Worker 2
 pnpm dev:w3          # Dev Worker 3
@@ -283,6 +317,8 @@ pnpm deploy:all      # Deploy ทั้ง 3 workers
 pnpm db:migrate      # Apply schema to remote D1
 pnpm db:migrate:local # Apply schema to local D1
 ```
+
+> **VSCode:** กด `Ctrl+Shift+B` เพื่อรัน 3 workers แยก terminal panels
 
 ---
 
