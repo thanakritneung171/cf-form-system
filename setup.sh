@@ -53,12 +53,13 @@ echo "[5/6] Generating admin user seed..."
 SEED_SQL=$(node -e "
 const crypto = require('crypto');
 const salt = crypto.randomBytes(16).toString('hex');
-// PBKDF2 100k iterations — ค่า hash นี้สร้างด้วย sha256+salt สำหรับ seed เท่านั้น
-// Workers ใช้ PBKDF2 จริงผ่าน Web Crypto API
-const hash = crypto.createHash('sha256').update('admin1234' + salt).digest('hex');
-const id = 'user_' + crypto.randomBytes(8).toString('hex');
-const now = Date.now();
-console.log(\"INSERT OR IGNORE INTO users (id, username, email, password_hash, password_salt, role, is_active, created_at) VALUES ('\" + id + \"', 'admin', 'admin@local.dev', '\" + hash + \"', '\" + salt + \"', 'admin', 1, \" + now + \");\");
+// PBKDF2-SHA256 100k iterations — ตรงกับ auth.ts hashPassword()
+crypto.pbkdf2('admin1234', salt, 100000, 32, 'sha256', (err, key) => {
+  const hash = key.toString('hex');
+  const id = 'user_' + crypto.randomBytes(8).toString('hex');
+  const now = Date.now();
+  console.log(\"INSERT OR IGNORE INTO users (id, username, email, password_hash, password_salt, role, is_active, created_at) VALUES ('\" + id + \"', 'admin', 'admin@local.dev', '\" + hash + \"', '\" + salt + \"', 'admin', 1, \" + now + \");\");
+});
 ")
 echo "Seed SQL: $SEED_SQL"
 wrangler d1 execute form-system-db --command="$SEED_SQL" --remote

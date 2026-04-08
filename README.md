@@ -81,7 +81,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 ```toml
 [vars]
-WORKER3_URL = "https://worker3-external-api.<your-subdomain>.workers.dev"
+WORKER3_URL = "https://worker3-external-api.cloudflare-training3.workers.dev"
 ```
 
 ### 4. Deploy
@@ -110,7 +110,7 @@ pnpm db:migrate
 
 ### 6. เปลี่ยน password admin
 
-เข้า `https://worker1-intake.<subdomain>.workers.dev/admin/login` แล้ว login ด้วย:
+เข้า `https://worker1-intake.cloudflare-training3.workers.dev/admin/login` แล้ว login ด้วย:
 - Username: `admin`
 - Password: `admin1234`
 
@@ -195,7 +195,7 @@ pnpm db:migrate:local
 
 ## Admin Dashboard
 
-URL: `https://worker1-intake.<subdomain>.workers.dev/admin`
+URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 ### Roles
 
