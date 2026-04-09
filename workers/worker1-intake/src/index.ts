@@ -238,6 +238,14 @@ async function handleSubmit(req: Request, env: Env): Promise<Response> {
 
 async function handleAdminLogin(req: Request, env: Env): Promise<Response> {
   if (req.method === 'GET') {
+    // ถ้า login อยู่แล้ว → ไป submissions โดยตรง (ไม่ต้อง login ซ้ำ)
+    const already = await getCurrentUser(req, env).catch(() => null);
+    if (already) {
+      const url = new URL(req.url);
+      const next = url.searchParams.get('next') ?? '/admin/submissions';
+      const safeNext = next.startsWith('/admin') ? next : '/admin/submissions';
+      return new Response(null, { status: 302, headers: { Location: safeNext } });
+    }
     const url = new URL(req.url);
     return html(loginPage(url.searchParams.get('error') ?? undefined, url.searchParams.get('next') ?? undefined));
   }
@@ -1196,21 +1204,26 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path.startsWith('/form/')) return handleFormPage(req, env);
   if (path.startsWith('/submit/') && method === 'POST') return handleSubmit(req, env);
 
-  // admin redirect
-  if (path === '/admin' || path === '/admin/') return redirect('/admin/submissions');
+  // ── Admin login / logout (ไม่ต้องผ่าน auth guard)
   if (path === '/admin/login') return handleAdminLogin(req, env);
   if (path === '/admin/logout' && method === 'POST') return handleAdminLogout(req, env);
 
-  // ── Admin auth middleware ──────────────────────────────────────────────
-  // Centralized guard: ถ้า path เริ่มด้วย /admin/ แต่ไม่ได้ login → เด้งไป /admin/login
-  // ใช้ new Response + Location header (ไม่ใช้ Response.redirect ที่ต้องการ absolute URL)
-  if (path.startsWith('/admin/')) {
-    const user = await getCurrentUser(req, env).catch(() => null);
-    if (!user) {
+  // ── Admin auth guard ───────────────────────────────────────────────────
+  // ทุก path ที่ขึ้นต้นด้วย /admin (รวม /admin, /admin/, /admin/*)
+  // ถ้าไม่ได้ login → เด้งไป /admin/login?next=<path>
+  // ถ้า login แล้ว และเข้า /admin หรือ /admin/ → เด้งไป /admin/submissions
+  if (path === '/admin' || path === '/admin/' || path.startsWith('/admin/')) {
+    const authUser = await getCurrentUser(req, env).catch(() => null);
+    if (!authUser) {
+      const next = (path === '/admin' || path === '/admin/') ? '/admin/submissions' : path;
       return new Response(null, {
         status: 302,
-        headers: { Location: '/admin/login?next=' + encodeURIComponent(path) },
+        headers: { Location: '/admin/login?next=' + encodeURIComponent(next) },
       });
+    }
+    // login แล้ว + /admin หรือ /admin/ → ไป submissions โดยตรง
+    if (path === '/admin' || path === '/admin/') {
+      return new Response(null, { status: 302, headers: { Location: '/admin/submissions' } });
     }
   }
 
@@ -1261,7 +1274,17 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   const whDetail = path.match(/^\/admin\/webhooks\/([^/]+)$/);
   if (whDetail && method === 'GET') return handleAdminWebhookDetail(req, env, whDetail[1]);
 
-  return new Response('Not Found', { status: 404 });
+  // ── 404 fallback ──────────────────────────────────────────────────────
+  // path เป็น /admin/* แต่ไม่ตรง route → redirect ตาม auth
+  // path อื่นๆ ที่ไม่ใช่ admin → กลับหน้า /
+  if (path.startsWith('/admin')) {
+    const fallbackUser = await getCurrentUser(req, env).catch(() => null);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: fallbackUser ? '/admin/submissions' : '/admin/login' },
+    });
+  }
+  return new Response(null, { status: 302, headers: { Location: '/' } });
 }
 
 // ===== Exports =====
