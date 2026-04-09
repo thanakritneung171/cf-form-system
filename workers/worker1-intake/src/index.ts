@@ -51,7 +51,9 @@ import {
   webhookDetailPage,
   queueStatusPage,
   loadtestPage,
+  clearDataPage,
 } from './html';
+import type { ClearDataStats } from './html';
 
 // ===== Env bindings =====
 // Queue producers แยกต่อ form type เพื่อ isolation และ per-form throughput control
@@ -1019,6 +1021,97 @@ button[type=submit]:disabled{background:#94a3b8;cursor:not-allowed}
 small{color:#64748b;font-size:0.8rem}
 `.trim();
 
+// ===== Admin clear data =====
+
+async function handleAdminClearData(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin']);
+  if (result instanceof Response) return result;
+  const user = result as User;
+
+  if (req.method === 'GET') {
+    const [subCount, fileCount, sessCount, attemptCount, deliveryCount] = await Promise.all([
+      env.DB.prepare('SELECT COUNT(*) as n FROM submissions').first<{ n: number }>(),
+      env.DB.prepare('SELECT COUNT(*) as n FROM submission_files').first<{ n: number }>(),
+      env.DB.prepare('SELECT COUNT(*) as n FROM sessions').first<{ n: number }>(),
+      env.DB.prepare('SELECT COUNT(*) as n FROM login_attempts').first<{ n: number }>(),
+      env.DB.prepare('SELECT COUNT(*) as n FROM webhook_deliveries').first<{ n: number }>(),
+    ]);
+
+    // count R2 objects
+    let r2Count = 0;
+    let cursor: string | undefined;
+    do {
+      const listed = await env.UPLOADS.list({ cursor, limit: 1000 });
+      r2Count += listed.objects.length;
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor);
+
+    const stats: ClearDataStats = {
+      submissions: subCount?.n ?? 0,
+      submissionFiles: fileCount?.n ?? 0,
+      sessions: sessCount?.n ?? 0,
+      loginAttempts: attemptCount?.n ?? 0,
+      webhookDeliveries: deliveryCount?.n ?? 0,
+      r2Objects: r2Count,
+    };
+
+    const csrfToken = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
+    return html(clearDataPage(user, stats, csrfToken));
+  }
+
+  // POST — perform clear
+  const body = await req.formData();
+  const csrfToken = body.get('csrf_token') as string;
+  if (!await verifyCsrfToken(csrfToken, getSessionId(req) ?? '', env.SESSION_SECRET)) {
+    return flashRedirect('/admin/clear-data', '❌ CSRF token ไม่ถูกต้อง');
+  }
+
+  const targets = body.getAll('target').map(String);
+  if (targets.length === 0) {
+    return flashRedirect('/admin/clear-data', '❌ กรุณาเลือกข้อมูลที่ต้องการเคลียร์');
+  }
+
+  const cleared: string[] = [];
+
+  if (targets.includes('submissions')) {
+    await env.DB.prepare('DELETE FROM submission_files').run();
+    await env.DB.prepare('DELETE FROM submissions').run();
+    cleared.push('Submissions + File Records (D1)');
+  }
+
+  if (targets.includes('r2')) {
+    let cursor: string | undefined;
+    let r2Deleted = 0;
+    do {
+      const listed = await env.UPLOADS.list({ cursor, limit: 1000 });
+      if (listed.objects.length > 0) {
+        await Promise.all(listed.objects.map(o => env.UPLOADS.delete(o.key)));
+        r2Deleted += listed.objects.length;
+      }
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor);
+    cleared.push(`R2 Files (${r2Deleted} objects)`);
+  }
+
+  if (targets.includes('sessions')) {
+    await env.DB.prepare('DELETE FROM sessions').run();
+    await env.DB.prepare('DELETE FROM login_attempts').run();
+    cleared.push('Sessions + Login Attempts (D1)');
+  }
+
+  if (targets.includes('webhook_deliveries')) {
+    await env.DB.prepare('DELETE FROM webhook_deliveries').run();
+    cleared.push('Webhook Deliveries (D1)');
+  }
+
+  // if sessions were cleared, redirect to login
+  if (targets.includes('sessions')) {
+    return new Response(null, { status: 302, headers: { Location: '/admin/login' } });
+  }
+
+  return flashRedirect('/admin/clear-data', `✓ เคลียร์แล้ว: ${cleared.join(', ')}`);
+}
+
 // ===== Load Test handlers =====
 
 async function handleLoadTest(req: Request, env: Env): Promise<Response> {
@@ -1118,6 +1211,7 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/profile/password' && method === 'POST') return handleAdminProfilePassword(req, env);
   if (path === '/admin/export/submissions.csv') return handleExportCsv(req, env, 'submissions');
   if (path === '/admin/export/dispatched.csv') return handleExportCsv(req, env, 'dispatched');
+  if (path === '/admin/clear-data') return handleAdminClearData(req, env);
   if (path === '/admin/users' && method === 'GET') return handleAdminUsers(req, env);
   if (path === '/admin/users/new') return handleAdminUserNew(req, env);
 
