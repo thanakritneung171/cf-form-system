@@ -1201,6 +1201,19 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/login') return handleAdminLogin(req, env);
   if (path === '/admin/logout' && method === 'POST') return handleAdminLogout(req, env);
 
+  // ── Admin auth middleware ──────────────────────────────────────────────
+  // Centralized guard: ถ้า path เริ่มด้วย /admin/ แต่ไม่ได้ login → เด้งไป /admin/login
+  // ใช้ new Response + Location header (ไม่ใช้ Response.redirect ที่ต้องการ absolute URL)
+  if (path.startsWith('/admin/')) {
+    const user = await getCurrentUser(req, env).catch(() => null);
+    if (!user) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: '/admin/login?next=' + encodeURIComponent(path) },
+      });
+    }
+  }
+
   // admin pages
   if (path === '/admin/submissions') return handleAdminSubmissions(req, env);
   if (path === '/admin/dispatched') return handleAdminDispatched(req, env);

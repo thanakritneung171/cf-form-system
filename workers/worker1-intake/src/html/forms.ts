@@ -1,10 +1,50 @@
 import type { FormConfig } from 'shared/types';
 import { FORMS_CONFIG } from 'shared/forms-config';
 import { esc } from '../validators';
-import { BASE_CSS } from './layout';
+
+// ── Shared brand CSS (forms use own minimal CSS, not ADMIN_CSS) ──────────────
+const BRAND_BLOCKS = `
+  <div style="display:flex;gap:0">
+    <span style="background:#ffd900;width:5px;height:20px;display:block"></span>
+    <span style="background:#ffa110;width:5px;height:20px;display:block"></span>
+    <span style="background:#ff8105;width:5px;height:20px;display:block"></span>
+    <span style="background:#fb6424;width:5px;height:20px;display:block"></span>
+    <span style="background:#fa520f;width:5px;height:20px;display:block"></span>
+  </div>`;
+
+// ── Base CSS vars shared between index + form pages ──────────────────────────
+const BASE = `
+  :root {
+    --cream:       #fffaeb;
+    --ivory:       #fdf8ee;
+    --amber:       #ffa110;
+    --amber-light: #ffd06a;
+    --orange:      #fa520f;
+    --black:       #1a1209;
+    --text:        #2e1f08;
+    --text-muted:  #9c7c4a;
+    --text-light:  #c8a86b;
+    --border:      #eed9a8;
+    --radius:      12px;
+    --shadow:      0 4px 20px rgba(127,99,21,.10), 0 1px 4px rgba(127,99,21,.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 15px; }
+  body {
+    font-family: Arial, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    background: var(--ivory);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--orange); text-decoration: none; }
+  a:hover { text-decoration: underline; }`;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INDEX PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function indexPage(): string {
-  // ── Categories ──────────────────────────────────────────────────
   const categories: { label: string; types: string[] }[] = [
     { label: 'ติดต่อ & สนับสนุน',      types: ['contact', 'complaint', 'feedback', 'incident-report'] },
     { label: 'สมัครงาน & พาร์ทเนอร์', types: ['job-application', 'partnership'] },
@@ -12,22 +52,20 @@ export function indexPage(): string {
     { label: 'กิจกรรม & ข่าวสาร',      types: ['event-registration', 'newsletter'] },
   ];
 
-  // ── Icons per form type (24×24 Feather-style SVG) ───────────────
   const icons: Record<string, string> = {
-    'contact':            `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
-    'job-application':    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
-    'complaint':          `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-    'event-registration': `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
-    'product-inquiry':    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-    'warranty-claim':     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
-    'newsletter':         `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
-    'feedback':           `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
-    'partnership':        `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-    'incident-report':    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    'contact':            `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    'job-application':    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+    'complaint':          `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    'event-registration': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+    'product-inquiry':    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    'warranty-claim':     `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    'newsletter':         `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>`,
+    'feedback':           `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    'partnership':        `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    'incident-report':    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
   };
 
-  // ── Category icon colors ─────────────────────────────────────────
-  const catColors: Record<string, string> = {
+  const catAccent: Record<string, string> = {
     'ติดต่อ & สนับสนุน':      '#fa520f',
     'สมัครงาน & พาร์ทเนอร์':  '#ffa110',
     'สินค้า & บริการ':          '#ff8105',
@@ -35,30 +73,29 @@ export function indexPage(): string {
   };
 
   const categorySections = categories.map(cat => {
+    const accent = catAccent[cat.label] ?? '#fa520f';
     const cards = cat.types
       .filter(t => FORMS_CONFIG[t as keyof typeof FORMS_CONFIG])
       .map(type => {
         const cfg = FORMS_CONFIG[type as keyof typeof FORMS_CONFIG];
-        const color = catColors[cat.label] ?? '#fa520f';
         const icon = icons[type] ?? icons['contact'];
         return `<a class="fc" href="/form/${esc(type)}" data-title="${esc(cfg.title.toLowerCase())} ${esc(type)}">
-          <div class="fc-icon" style="color:${color};background:${color}18">${icon}</div>
+          <div class="fc-icon" style="color:${accent};background:${accent}18">${icon}</div>
           <div class="fc-body">
             <div class="fc-title">${esc(cfg.title)}</div>
             <div class="fc-desc">${esc(cfg.description)}</div>
-            ${cfg.hasFileUpload ? `<span class="fc-badge">แนบไฟล์ได้</span>` : ''}
+            ${cfg.hasFileUpload ? `<span class="fc-chip">📎 แนบไฟล์ได้</span>` : ''}
           </div>
-          <div class="fc-arrow">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>
-          </div>
+          <svg class="fc-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>
         </a>`;
-      }).join('\n');
-
+      }).join('');
     return `<section class="cat-section" data-cat="${esc(cat.label)}">
-      <div class="cat-label">${esc(cat.label)}</div>
+      <div class="cat-label">
+        <span class="cat-dot" style="background:${accent}"></span>${esc(cat.label)}
+      </div>
       <div class="cat-grid">${cards}</div>
     </section>`;
-  }).join('\n');
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="th">
@@ -67,219 +104,171 @@ export function indexPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>แบบฟอร์มออนไลน์</title>
   <style>
-    ${BASE_CSS}
+    ${BASE}
 
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      min-height: 100vh;
-      background: var(--ivory);
-      padding: 0 0 4rem;
-    }
-
-    /* ── Top bar ── */
+    /* ── Topbar ── */
     .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.875rem 2rem;
-      border-bottom: 1px solid var(--border);
-      background: #fff;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 52px;
+      background: #fff; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
     }
-    .topbar-brand {
-      display: flex; align-items: center; gap: 8px;
+    .tb-brand { display: flex; align-items: center; gap: 10px; }
+    .tb-name  { font-size: 14px; font-weight: 400; color: var(--black); letter-spacing: -.02em; }
+    .tb-link  {
+      font-size: 12px; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 0.28rem 0.8rem; transition: all .1s;
     }
-    .topbar-blocks { display: flex; gap: 0; }
-    .topbar-blocks span { display: block; width: 5px; height: 18px; }
-    .topbar-name { font-size: 14px; font-weight: 400; color: var(--black); letter-spacing: -.02em; }
-    .topbar-link {
-      font-size: 12px; color: var(--text-light); text-decoration: none;
-      border: 1px solid var(--border); border-radius: 6px;
-      padding: 0.3rem 0.75rem; transition: border-color .08s, color .08s;
-    }
-    .topbar-link:hover { border-color: var(--amber-light); color: var(--black); text-decoration: none; }
+    .tb-link:hover { border-color: var(--amber); color: var(--black); text-decoration: none; }
 
     /* ── Hero ── */
-    .hero {
-      text-align: center;
-      padding: 3.5rem 1rem 2.5rem;
-      max-width: 560px;
-      margin: 0 auto;
+    .hero { text-align: center; padding: 3.5rem 1rem 2.25rem; max-width: 540px; margin: 0 auto; }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-muted); letter-spacing: .1em;
+      text-transform: uppercase; margin-bottom: 1rem;
+      background: #fff; border: 1px solid var(--border); border-radius: 99px;
+      padding: 0.25rem 0.875rem;
     }
-    .hero-title {
-      font-size: 40px; font-weight: 400; color: var(--black);
-      letter-spacing: -1px; line-height: 1.1; margin-bottom: 0.75rem;
-    }
-    .hero-sub {
-      font-size: 15px; color: var(--text-muted); line-height: 1.6;
-    }
+    .hero-eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); display: inline-block; }
+    .hero-title { font-size: 38px; font-weight: 400; color: var(--black); letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 0.875rem; }
+    .hero-sub   { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
 
     /* ── Search ── */
-    .search-wrap {
-      max-width: 440px; margin: 0 auto 2.5rem; padding: 0 1rem;
-      position: relative;
-    }
-    .search-icon {
-      position: absolute; left: 1.875rem; top: 50%; transform: translateY(-50%);
-      color: var(--text-light); pointer-events: none;
-    }
+    .search-wrap { max-width: 420px; margin: 0 auto 2.5rem; padding: 0 1.25rem; position: relative; }
+    .search-icon { position: absolute; left: 2.125rem; top: 50%; transform: translateY(-50%); color: var(--text-light); pointer-events: none; }
     .search-input {
       width: 100%; height: 44px;
       padding: 0 1rem 0 2.75rem;
       border: 1px solid var(--border); border-radius: 10px;
       background: #fff; color: var(--black); font-size: 14px;
-      font-family: Arial, ui-sans-serif, system-ui, sans-serif;
-      transition: border-color .08s, box-shadow .08s;
-      box-shadow: 0 1px 4px rgba(127,99,21,0.06);
+      font-family: inherit;
+      box-shadow: 0 1px 4px rgba(127,99,21,.06);
+      transition: border-color .1s, box-shadow .1s;
     }
-    .search-input:focus {
-      outline: none; border-color: var(--orange);
-      box-shadow: 0 0 0 3px rgba(250,82,15,0.10);
-    }
+    .search-input:focus { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(250,82,15,.10); }
     .search-input::placeholder { color: var(--text-light); }
 
     /* ── Content ── */
-    .content { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; }
+    .page-content { max-width: 980px; margin: 0 auto; padding: 0 1.5rem 5rem; }
 
-    /* ── Category ── */
+    /* ── Category section ── */
     .cat-section { margin-bottom: 2.25rem; }
     .cat-section.hidden { display: none; }
     .cat-label {
-      font-size: 11px; font-weight: 400; color: var(--text-light);
+      display: flex; align-items: center; gap: 7px;
+      font-size: 11px; font-weight: 400; color: var(--text-muted);
       text-transform: uppercase; letter-spacing: .1em;
-      margin-bottom: 0.75rem; padding-left: 2px;
+      margin-bottom: 0.875rem;
     }
-    .cat-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 0.75rem;
-    }
+    .cat-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(276px, 1fr)); gap: 0.75rem; }
 
     /* ── Form card ── */
     .fc {
-      display: flex; align-items: flex-start; gap: 1rem;
+      display: flex; align-items: center; gap: 1rem;
       background: #fff; border: 1px solid var(--border); border-radius: 14px;
-      padding: 1.25rem 1rem 1.25rem 1.25rem;
+      padding: 1.125rem 1rem 1.125rem 1.25rem;
       text-decoration: none; color: inherit;
       transition: box-shadow .15s, transform .15s, border-color .15s;
-      cursor: pointer;
     }
     .fc:hover {
-      box-shadow: 0 6px 24px rgba(127,99,21,0.11), 0 1px 4px rgba(127,99,21,0.07);
-      transform: translateY(-2px);
-      border-color: var(--amber-light);
+      box-shadow: 0 6px 24px rgba(127,99,21,.12), 0 1px 4px rgba(127,99,21,.07);
+      transform: translateY(-2px); border-color: var(--amber-light);
       text-decoration: none;
     }
     .fc.hidden { display: none; }
-
-    .fc-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
+    .fc-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .fc-body { flex: 1; min-width: 0; }
-    .fc-title {
-      font-size: 14px; font-weight: 400; color: var(--black);
-      margin-bottom: 0.25rem; letter-spacing: -.01em;
-    }
-    .fc-desc {
-      font-size: 12px; color: var(--text-muted); line-height: 1.5;
-    }
-    .fc-badge {
-      display: inline-block; margin-top: 0.5rem;
+    .fc-title { font-size: 14px; color: var(--black); margin-bottom: 0.2rem; }
+    .fc-desc  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+    .fc-chip  {
+      display: inline-block; margin-top: 0.4rem;
       font-size: 10px; color: var(--text-muted);
-      background: var(--cream); border: 1px solid var(--amber-light);
-      border-radius: 4px; padding: 1px 6px;
-      letter-spacing: .03em;
+      background: var(--cream); border: 1px solid var(--border);
+      border-radius: 5px; padding: 1px 6px;
     }
-    .fc-arrow {
-      color: var(--text-light); flex-shrink: 0; margin-top: 2px;
-      transition: color .08s, transform .15s;
-    }
-    .fc:hover .fc-arrow { color: var(--orange); transform: translateX(2px); }
+    .fc-arrow { color: var(--text-light); flex-shrink: 0; transition: color .1s, transform .15s; }
+    .fc:hover .fc-arrow { color: var(--orange); transform: translateX(3px); }
 
     /* ── No results ── */
-    .no-results {
-      text-align: center; padding: 3rem 1rem;
-      color: var(--text-muted); font-size: 14px;
-      display: none;
-    }
+    .no-results { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 14px; display: none; }
+    .no-results svg { display: block; margin: 0 auto 0.75rem; opacity: .3; }
 
     @media (max-width: 600px) {
       .hero-title { font-size: 28px; }
-      .topbar { padding: 0.75rem 1rem; }
-      .content { padding: 0 1rem; }
+      .topbar { padding: 0 1rem; }
+      .page-content { padding: 0 1rem 4rem; }
     }
   </style>
 </head>
 <body>
-
-  <!-- Top bar -->
   <header class="topbar">
-    <div class="topbar-brand">
-      <div class="topbar-blocks">
-        <span style="background:#ffd900"></span>
-        <span style="background:#ffa110"></span>
-        <span style="background:#ff8105"></span>
-        <span style="background:#fb6424"></span>
-        <span style="background:#fa520f"></span>
-      </div>
-      <span class="topbar-name">Form System</span>
+    <div class="tb-brand">
+      ${BRAND_BLOCKS}
+      <span class="tb-name">Form System</span>
     </div>
-    <a href="/loadtest" class="topbar-link">Load Test</a>
+    <a href="/admin/login" class="tb-link">Login</a>
   </header>
 
-  <!-- Hero -->
   <div class="hero">
+    <div class="hero-eyebrow"><span></span>ออนไลน์ · ปลอดภัย · รวดเร็ว</div>
     <div class="hero-title">แบบฟอร์มออนไลน์</div>
-    <div class="hero-sub">เลือกแบบฟอร์มที่ต้องการกรอก — ระบบจะดำเนินการและแจ้งผลอัตโนมัติ</div>
+    <div class="hero-sub">เลือกแบบฟอร์มที่ต้องการ — ระบบจะดำเนินการและแจ้งผลอัตโนมัติ</div>
   </div>
 
-  <!-- Search -->
   <div class="search-wrap">
     <span class="search-icon">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </span>
     <input class="search-input" type="search" id="searchInput" placeholder="ค้นหาแบบฟอร์ม…" autocomplete="off">
   </div>
 
-  <!-- Categories -->
-  <div class="content" id="formContent">
+  <div class="page-content" id="formContent">
     ${categorySections}
-    <div class="no-results" id="noResults">ไม่พบแบบฟอร์มที่ตรงกับการค้นหา</div>
+    <div class="no-results" id="noResults">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      ไม่พบแบบฟอร์มที่ตรงกับการค้นหา
+    </div>
   </div>
 
   <script>
-    var searchInput = document.getElementById('searchInput');
-    var noResults   = document.getElementById('noResults');
-    searchInput.addEventListener('input', function () {
+    var inp = document.getElementById('searchInput');
+    var noR = document.getElementById('noResults');
+    inp.addEventListener('input', function() {
       var q = this.value.trim().toLowerCase();
-      var anyVisible = false;
-      document.querySelectorAll('.fc').forEach(function (card) {
-        var text = (card.dataset.title || '') + ' ' + (card.textContent || '');
-        var match = !q || text.toLowerCase().includes(q);
-        card.classList.toggle('hidden', !match);
-        if (match) anyVisible = true;
+      var any = false;
+      document.querySelectorAll('.fc').forEach(function(c) {
+        var m = !q || ((c.dataset.title||'') + c.textContent).toLowerCase().includes(q);
+        c.classList.toggle('hidden', !m);
+        if (m) any = true;
       });
-      document.querySelectorAll('.cat-section').forEach(function (sec) {
-        var hasVisible = sec.querySelectorAll('.fc:not(.hidden)').length > 0;
-        sec.classList.toggle('hidden', !hasVisible);
+      document.querySelectorAll('.cat-section').forEach(function(s) {
+        s.classList.toggle('hidden', !s.querySelectorAll('.fc:not(.hidden)').length);
       });
-      noResults.style.display = anyVisible ? 'none' : 'block';
+      noR.style.display = any ? 'none' : 'block';
     });
   </script>
 </body>
 </html>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORM PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export function formPage(config: FormConfig): string {
   const fieldsHtml = config.fields.map(field => {
-    const id = `f_${field.name}`;
+    const id  = `f_${field.name}`;
     const req = field.required ? ' required' : '';
-    const ph = field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : '';
-    const reqMark = field.required ? ' <span style="color:#dc2626">*</span>' : '';
+    const ph  = field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : '';
+    const reqMark = field.required
+      ? ` <span class="req-star" aria-hidden="true">*</span>`
+      : '';
 
     if (field.type === 'textarea') {
-      return `<div class="form-group">
+      return `<div class="fg">
         <label for="${id}">${esc(field.label)}${reqMark}</label>
         <textarea id="${id}" name="${field.name}" rows="${field.rows ?? 4}"${req}${ph}></textarea>
       </div>`;
@@ -287,44 +276,53 @@ export function formPage(config: FormConfig): string {
 
     if (field.type === 'select') {
       const opts = (field.options ?? []).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
-      return `<div class="form-group">
+      return `<div class="fg">
         <label for="${id}">${esc(field.label)}${reqMark}</label>
-        <select id="${id}" name="${field.name}"${req}>
-          <option value="">— เลือก —</option>
-          ${opts}
-        </select>
+        <div class="select-wrap">
+          <select id="${id}" name="${field.name}"${req}>
+            <option value="">— เลือก —</option>
+            ${opts}
+          </select>
+          <svg class="sel-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
       </div>`;
     }
 
     if (field.type === 'multiselect') {
       const opts = (field.options ?? []).map(o =>
-        `<label class="checkbox-label">
-          <input type="checkbox" name="${field.name}" value="${esc(o)}"> ${esc(o)}
+        `<label class="cb-label">
+          <span class="cb-box"><input type="checkbox" name="${field.name}" value="${esc(o)}"><span class="cb-check"></span></span>
+          <span>${esc(o)}</span>
         </label>`,
       ).join('');
-      return `<div class="form-group">
+      return `<div class="fg">
         <div class="field-legend">${esc(field.label)}${reqMark}</div>
-        <div class="checkbox-group">${opts}</div>
+        <div class="cb-group">${opts}</div>
       </div>`;
     }
 
     if (field.type === 'file') {
       const accept = field.accept ? ` accept="${esc(field.accept)}"` : '';
-      const multi = field.multiple ? ' multiple' : '';
-      return `<div class="form-group">
+      const multi  = field.multiple ? ' multiple' : '';
+      return `<div class="fg">
         <label for="${id}">${esc(field.label)}${reqMark}</label>
-        <input type="file" id="${id}" name="${field.name}"${accept}${multi}${req}>
-        <div class="field-hint">ขนาดสูงสุดต่อไฟล์ ${field.maxSizeMB ?? 5} MB${field.maxFiles ? ` · สูงสุด ${field.maxFiles} ไฟล์` : ''}</div>
+        <label class="file-drop" for="${id}" id="drop_${id}">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          <div class="file-drop-text">คลิกหรือลากไฟล์มาวางที่นี่</div>
+          <div class="file-drop-hint">ขนาดสูงสุด ${field.maxSizeMB ?? 5} MB${field.maxFiles ? ` · สูงสุด ${field.maxFiles} ไฟล์` : ''}${field.accept ? ` · ${esc(field.accept)}` : ''}</div>
+          <div class="file-name" id="fn_${id}"></div>
+          <input type="file" id="${id}" name="${field.name}"${accept}${multi}${req} style="display:none">
+        </label>
       </div>`;
     }
 
     const minMax = field.min !== undefined ? ` min="${field.min}"` : '';
     const maxAttr = field.max !== undefined ? ` max="${field.max}"` : '';
-    return `<div class="form-group">
+    return `<div class="fg">
       <label for="${id}">${esc(field.label)}${reqMark}</label>
       <input type="${field.type}" id="${id}" name="${field.name}"${req}${ph}${minMax}${maxAttr}>
     </div>`;
-  }).join('\n');
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="th">
@@ -332,104 +330,441 @@ export function formPage(config: FormConfig): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(config.title)}</title>
-  <link rel="stylesheet" href="/style.css">
   <style>
-    ${BASE_CSS}
-    body { padding: 0; background: var(--bg); }
-    .form-header {
-      background: #1c1917;
-      padding: 1.5rem 1.75rem;
-      color: #fbbf24;
+    ${BASE}
+
+    body { background: var(--ivory); min-height: 100vh; }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 52px;
+      background: #fff; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
     }
-    .form-header .back-link { font-size: 0.82rem; color: #a8a29e; text-decoration: none; display: inline-block; margin-bottom: 0.5rem; }
-    .form-header .back-link:hover { color: #fbbf24; }
-    .form-header h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.25rem; }
-    .form-header p { font-size: 0.85rem; color: #a8a29e; }
-    .form-body { max-width: 640px; margin: 2rem auto; padding: 0 1.25rem 3rem; }
+    .tb-brand { display: flex; align-items: center; gap: 10px; }
+    .tb-name  { font-size: 14px; color: var(--black); }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 7px;
+      padding: 0.28rem 0.8rem; transition: all .1s;
+    }
+    .back-link:hover { border-color: var(--amber); color: var(--black); text-decoration: none; }
+
+    /* ── Form layout ── */
+    .form-outer {
+      max-width: 620px; margin: 2.5rem auto 5rem;
+      padding: 0 1.25rem;
+    }
+
+    /* ── Form hero ── */
+    .form-hero {
+      text-align: center; margin-bottom: 2rem;
+    }
+    .form-icon-wrap {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 60px; height: 60px; border-radius: 16px;
+      background: #fa520f18; color: var(--orange);
+      margin-bottom: 1rem;
+    }
+    .form-hero-title { font-size: 24px; font-weight: 400; color: var(--black); letter-spacing: -.5px; margin-bottom: 0.4rem; }
+    .form-hero-desc  { font-size: 13px; color: var(--text-muted); }
+
+    /* ── Card ── */
     .form-card {
-      background: var(--bg-card);
+      background: #fff;
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.75rem 2rem;
-      box-shadow: var(--shadow-sm);
+      border-radius: 18px;
+      padding: 2rem 2rem 1.75rem;
+      box-shadow: var(--shadow);
     }
-    .form-group { margin-bottom: 1.1rem; }
-    label { display: block; font-size: 0.82rem; font-weight: 600; color: #44403c; margin-bottom: 0.35rem; }
-    input, select, textarea {
-      width: 100%; padding: 0.6rem 0.875rem;
-      border: 1px solid var(--border); border-radius: var(--radius-sm);
-      background: #faf7f4; color: var(--text); font-size: 0.9rem;
-      transition: border-color .12s, box-shadow .12s;
+
+    /* ── Required indicator ── */
+    .req-note { font-size: 12px; color: var(--text-muted); margin-bottom: 1.5rem; }
+    .req-star { color: var(--orange); font-style: normal; margin-left: 2px; }
+
+    /* ── Field group ── */
+    .fg { margin-bottom: 1.25rem; }
+    label {
+      display: block; font-size: 12px; font-weight: 400;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em;
+      margin-bottom: 0.4rem;
+    }
+    input[type=text], input[type=email], input[type=tel], input[type=number],
+    input[type=url], input[type=date], input[type=datetime-local], select, textarea {
+      width: 100%; padding: 0.65rem 0.9rem;
+      border: 1px solid #e8d5a8; border-radius: 10px;
+      background: #fffdf7; color: var(--text);
+      font-size: 14px; font-family: inherit;
+      transition: border-color .1s, box-shadow .1s;
     }
     input:focus, select:focus, textarea:focus {
-      outline: none; border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: var(--bg-card);
+      outline: none; border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(255,161,16,.15);
+      background: #fff;
     }
-    input[type=file] { padding: 0.5rem; background: #faf7f4; }
-    .field-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; }
-    .field-legend { font-size: 0.82rem; font-weight: 600; color: #44403c; margin-bottom: 0.5rem; }
-    .checkbox-group { display: flex; flex-direction: column; gap: 0.35rem; }
-    .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 400; cursor: pointer; }
-    .checkbox-label input { width: auto; }
+    textarea { resize: vertical; min-height: 100px; }
+
+    /* ── Select wrapper ── */
+    .select-wrap { position: relative; }
+    .select-wrap select { appearance: none; padding-right: 2.25rem; cursor: pointer; }
+    .sel-arrow { position: absolute; right: 0.875rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+
+    /* ── Checkbox group ── */
+    .field-legend { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 0.6rem; }
+    .cb-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .cb-label {
+      display: flex; align-items: center; gap: 0.625rem;
+      font-size: 14px; color: var(--text); cursor: pointer;
+      padding: 0.5rem 0.75rem; border-radius: 8px;
+      border: 1px solid transparent; transition: background .1s, border-color .1s;
+    }
+    .cb-label:hover { background: var(--cream); border-color: var(--border); }
+    .cb-box { position: relative; flex-shrink: 0; }
+    .cb-box input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .cb-check {
+      display: block; width: 18px; height: 18px;
+      border: 1.5px solid #e8d5a8; border-radius: 5px;
+      background: #fffdf7; transition: background .1s, border-color .1s;
+    }
+    .cb-box input:checked ~ .cb-check {
+      background: var(--orange); border-color: var(--orange);
+      background-image: url("data:image/svg+xml,%3Csvg width='11' height='8' viewBox='0 0 11 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4L4 7L10 1' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: center;
+    }
+
+    /* ── File drop zone ── */
+    .file-drop {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 0.4rem; padding: 2rem 1rem;
+      border: 1.5px dashed #e8d5a8; border-radius: 12px;
+      background: #fffdf7; cursor: pointer;
+      transition: background .1s, border-color .1s;
+      text-align: center;
+    }
+    .file-drop:hover, .file-drop.drag-over { background: var(--cream); border-color: var(--amber); }
+    .file-drop svg { color: var(--text-light); }
+    .file-drop-text { font-size: 13px; color: var(--text-muted); }
+    .file-drop-hint { font-size: 11px; color: var(--text-light); }
+    .file-name { font-size: 12px; color: var(--orange); font-weight: 400; min-height: 1.2em; margin-top: 0.25rem; }
+
+    /* ── Divider ── */
+    .form-divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+
+    /* ── Submit button ── */
     .submit-btn {
-      width: 100%; padding: 0.75rem 1rem;
-      background: var(--primary); color: #fff;
-      border: none; border-radius: var(--radius-sm);
-      font-size: 0.95rem; font-weight: 600;
-      cursor: pointer; margin-top: 0.5rem;
-      transition: background .12s;
+      width: 100%; padding: 0.875rem 1rem;
+      background: linear-gradient(135deg, #ff8105 0%, #fa520f 100%);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: 15px; font-family: inherit;
+      cursor: pointer; letter-spacing: -.01em;
+      transition: opacity .1s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .submit-btn:hover { background: var(--primary-hover); }
-    .submit-btn:disabled { opacity: .6; cursor: not-allowed; }
-    .result-box { padding: 1rem; border-radius: var(--radius-sm); margin-top: 1rem; font-size: 0.875rem; }
-    .result-ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
-    .result-err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .submit-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
+    .submit-btn:active:not(:disabled) { transform: translateY(0); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .submit-spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .6s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error box (inline) ── */
+    .err-box {
+      display: none; padding: 0.875rem 1rem;
+      background: #fff5f0; border: 1px solid #fbbf9a; border-radius: 10px;
+      color: #7a2800; font-size: 13px; margin-top: 1rem;
+      display: flex; align-items: flex-start; gap: 0.5rem;
+    }
+    .err-box svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ══════════════════════════════════════════════
+       SUCCESS POPUP OVERLAY
+    ══════════════════════════════════════════════ */
+    .popup-backdrop {
+      display: none;
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(26,18,9,.45);
+      backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .popup-backdrop.show { display: flex; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .popup-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 2.5rem 2rem 2rem;
+      max-width: 420px; width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(127,99,21,.20), 0 4px 12px rgba(127,99,21,.10);
+      animation: slideUp .25s cubic-bezier(.34,1.3,.64,1);
+    }
+    @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* ── Animated checkmark ── */
+    .popup-check-wrap {
+      width: 72px; height: 72px; margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff8105 0%, #fa520f 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(250,82,15,.30);
+      animation: popIn .35s cubic-bezier(.34,1.5,.64,1) .1s both;
+    }
+    @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .popup-check { color: #fff; animation: drawCheck .3s ease .4s both; }
+    @keyframes drawCheck { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+
+    .popup-title { font-size: 22px; font-weight: 400; color: var(--black); letter-spacing: -.5px; margin-bottom: 0.4rem; }
+    .popup-sub   { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.25rem; }
+    .popup-ref   {
+      display: inline-block;
+      background: var(--cream); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.5rem 1rem;
+      font-size: 12px; color: var(--text-muted);
+      margin-bottom: 1.75rem; word-break: break-all;
+    }
+    .popup-ref code { font-family: ui-monospace, monospace; color: var(--orange); font-size: 12px; }
+
+    /* ── Countdown ring ── */
+    .popup-countdown-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 1.5rem; gap: 0.5rem;
+    }
+    .countdown-ring { position: relative; width: 48px; height: 48px; }
+    .countdown-ring svg { transform: rotate(-90deg); }
+    .ring-bg   { fill: none; stroke: #f0e4c0; stroke-width: 3; }
+    .ring-fill { fill: none; stroke: var(--orange); stroke-width: 3; stroke-linecap: round;
+                 stroke-dasharray: 125.6; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
+    .countdown-num {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 400; color: var(--orange);
+    }
+    .countdown-label { font-size: 11px; color: var(--text-light); }
+
+    .popup-btn-wrap { display: flex; gap: 0.75rem; }
+    .popup-btn-go {
+      flex: 1; padding: 0.75rem 1rem;
+      background: linear-gradient(135deg, #ff8105 0%, #fa520f 100%);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: 14px; font-family: inherit; cursor: pointer;
+      transition: opacity .1s, transform .1s;
+    }
+    .popup-btn-go:hover { opacity: .9; transform: translateY(-1px); }
+    .popup-btn-stay {
+      padding: 0.75rem 1rem;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 14px; font-family: inherit; cursor: pointer;
+      transition: all .1s;
+    }
+    .popup-btn-stay:hover { background: var(--cream); border-color: var(--amber-light); color: var(--black); }
+
+    @media (max-width: 600px) {
+      .form-card { padding: 1.5rem 1.25rem; }
+      .popup-btn-wrap { flex-direction: column-reverse; }
+    }
   </style>
 </head>
 <body>
-  <div class="form-header">
-    <a href="/" class="back-link">← กลับหน้าหลัก</a>
-    <h1>${esc(config.title)}</h1>
-    <p>${esc(config.description)}</p>
-  </div>
-  <div class="form-body">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="tb-brand">
+      ${BRAND_BLOCKS}
+      <span class="tb-name">Form System</span>
+    </div>
+    <a href="/" class="back-link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      กลับหน้าหลัก
+    </a>
+  </header>
+
+  <!-- Form hero -->
+  <div class="form-outer">
+    <div class="form-hero">
+      <div class="form-icon-wrap">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <div class="form-hero-title">${esc(config.title)}</div>
+      <div class="form-hero-desc">${esc(config.description)}</div>
+    </div>
+
+    <!-- Form card -->
     <div class="form-card">
+      <p class="req-note">ช่องที่มีเครื่องหมาย <span class="req-star">*</span> จำเป็นต้องกรอก</p>
+
       <form id="mainForm" method="POST" action="/submit/${config.type}" enctype="multipart/form-data" novalidate>
         ${fieldsHtml}
-        <button type="submit" id="submitBtn" class="submit-btn">ส่งแบบฟอร์ม</button>
+        <div class="form-divider"></div>
+        <button type="submit" id="submitBtn" class="submit-btn">
+          <span class="submit-spinner" id="spinner"></span>
+          <span id="btnText">ส่งแบบฟอร์ม</span>
+        </button>
       </form>
-      <div id="result" style="display:none"></div>
+
+      <!-- Error box -->
+      <div class="err-box" id="errBox" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errMsg"></span>
+      </div>
     </div>
   </div>
+
+  <!-- ══════════════════════════════════════
+       SUCCESS POPUP
+  ══════════════════════════════════════ -->
+  <div class="popup-backdrop" id="successPopup" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
+    <div class="popup-card">
+
+      <div class="popup-check-wrap">
+        <svg class="popup-check" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+
+      <div class="popup-title" id="popupTitle">ส่งแบบฟอร์มสำเร็จ!</div>
+      <div class="popup-sub">ข้อมูลของคุณได้รับการบันทึกเรียบร้อยแล้ว<br>ระบบจะดำเนินการและแจ้งผลตามขั้นตอน</div>
+
+      <div class="popup-ref">
+        หมายเลขอ้างอิง: <code id="popupRef">—</code>
+      </div>
+
+      <div class="popup-countdown-wrap">
+        <div class="countdown-ring">
+          <svg width="48" height="48" viewBox="0 0 48 48">
+            <circle class="ring-bg"   cx="24" cy="24" r="20"/>
+            <circle class="ring-fill" cx="24" cy="24" r="20" id="ringFill"/>
+          </svg>
+          <div class="countdown-num" id="countNum">5</div>
+        </div>
+        <div class="countdown-label">วินาที แล้วจะไปหน้าหลัก</div>
+      </div>
+
+      <div class="popup-btn-wrap">
+        <button class="popup-btn-go"   id="popupGo"   onclick="goHome()">ไปหน้าหลักเลย</button>
+        <button class="popup-btn-stay" id="popupStay" onclick="stayHere()">กรอกฟอร์มใหม่</button>
+      </div>
+
+    </div>
+  </div>
+
   <script>
-    const form = document.getElementById('mainForm');
-    const btn = document.getElementById('submitBtn');
-    const result = document.getElementById('result');
-    form.addEventListener('submit', async e => {
+    /* ── File input labels ── */
+    document.querySelectorAll('input[type="file"]').forEach(function(inp) {
+      var drop = document.getElementById('drop_' + inp.id);
+      var nm   = document.getElementById('fn_'   + inp.id);
+      if (!drop || !nm) return;
+
+      inp.addEventListener('change', function() {
+        var files = Array.from(this.files);
+        nm.textContent = files.length ? files.map(function(f){return f.name}).join(', ') : '';
+      });
+
+      drop.addEventListener('dragover',  function(e){ e.preventDefault(); drop.classList.add('drag-over'); });
+      drop.addEventListener('dragleave', function()  { drop.classList.remove('drag-over'); });
+      drop.addEventListener('drop', function(e) {
+        e.preventDefault(); drop.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+          inp.files = e.dataTransfer.files;
+          inp.dispatchEvent(new Event('change'));
+        }
+      });
+    });
+
+    /* ── Form submit ── */
+    var form     = document.getElementById('mainForm');
+    var btn      = document.getElementById('submitBtn');
+    var btnText  = document.getElementById('btnText');
+    var spinner  = document.getElementById('spinner');
+    var errBox   = document.getElementById('errBox');
+    var errMsg   = document.getElementById('errMsg');
+
+    form.addEventListener('submit', async function(e) {
       e.preventDefault();
       btn.disabled = true;
-      btn.textContent = 'กำลังส่ง...';
-      result.style.display = 'none';
+      spinner.style.display = 'block';
+      btnText.textContent = 'กำลังส่ง…';
+      errBox.style.display = 'none';
+
       try {
-        const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
-        const json = await res.json();
+        var res  = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+        var json = await res.json();
+
         if (json.ok) {
-          result.className = 'result-box result-ok';
-          result.innerHTML = '<strong>✓ ส่งสำเร็จ!</strong> หมายเลขอ้างอิง: <code>' + json.submission_id + '</code>';
-          result.style.display = 'block';
           form.reset();
+          showSuccess(json.submission_id);
         } else {
-          result.className = 'result-box result-err';
-          result.innerHTML = '<strong>เกิดข้อผิดพลาด:</strong> ' + (json.errors ? json.errors.map(function(e){return e.message}).join(', ') : json.error);
-          result.style.display = 'block';
+          var msg = json.errors
+            ? json.errors.map(function(er){return er.message}).join(' · ')
+            : (json.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+          errMsg.textContent = msg;
+          errBox.style.display = 'flex';
+          errBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-      } catch(err) {
-        result.className = 'result-box result-err';
-        result.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
-        result.style.display = 'block';
+      } catch(_) {
+        errMsg.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาตรวจสอบอินเทอร์เน็ตและลองใหม่';
+        errBox.style.display = 'flex';
       }
+
       btn.disabled = false;
-      btn.textContent = 'ส่งแบบฟอร์ม';
+      spinner.style.display = 'none';
+      btnText.textContent = 'ส่งแบบฟอร์ม';
+    });
+
+    /* ── Success popup ── */
+    var popup      = document.getElementById('successPopup');
+    var popupRef   = document.getElementById('popupRef');
+    var countNum   = document.getElementById('countNum');
+    var ringFill   = document.getElementById('ringFill');
+    var countdown  = 5;
+    var countTimer = null;
+    var CIRCUMF    = 125.6; /* 2π × r=20 */
+
+    function showSuccess(submissionId) {
+      popupRef.textContent = submissionId || '—';
+      countdown = 5;
+      countNum.textContent = countdown;
+      ringFill.style.strokeDashoffset = '0';
+      popup.classList.add('show');
+      startCountdown();
+    }
+
+    function startCountdown() {
+      clearInterval(countTimer);
+      countTimer = setInterval(function() {
+        countdown--;
+        countNum.textContent = countdown;
+        /* Animate ring: offset goes from 0 → CIRCUMF over 5 steps */
+        ringFill.style.strokeDashoffset = String(CIRCUMF * (1 - countdown / 5));
+        if (countdown <= 0) { clearInterval(countTimer); goHome(); }
+      }, 1000);
+    }
+
+    function goHome() {
+      clearInterval(countTimer);
+      popup.classList.remove('show');
+      window.location.href = '/';
+    }
+
+    function stayHere() {
+      clearInterval(countTimer);
+      popup.classList.remove('show');
+    }
+
+    /* Close on backdrop click */
+    popup.addEventListener('click', function(e) {
+      if (e.target === popup) stayHere();
+    });
+
+    /* Close on Escape */
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && popup.classList.contains('show')) stayHere();
     });
   </script>
 </body>

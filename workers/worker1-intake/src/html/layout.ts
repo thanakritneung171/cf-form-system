@@ -646,6 +646,7 @@ export function adminLayout(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} — Form Admin</title>
   <style>${ADMIN_CSS}</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <style>
     /* ────────────────────────────────────────────────────────────
        Flatpickr — isolation reset + minimal warm theme
@@ -668,17 +669,24 @@ export function adminLayout(
       box-sizing: border-box !important;
     }
 
-    /* 2. Calendar shell */
+    /* 2. Calendar shell
+       - position:absolute (ไม่ใช้ fixed — flatpickr ใช้ visibility toggle ซ่อน/แสดง)
+       - top/left คำนวณใหม่ใน onOpen JS: rect + scrollY
+       - user-select + pointer-events ปกติ (ห้ามให้ calendar follow เมาส์) */
     .flatpickr-calendar {
+      position: absolute !important;
       background: #fff !important;
       border: 1px solid #e8d5a8 !important;
       border-radius: 12px !important;
-      box-shadow: 0 4px 16px rgba(127,99,21,0.10) !important;
+      box-shadow: 0 4px 24px rgba(127,99,21,0.15) !important;
       font-family: Arial, ui-sans-serif, system-ui, sans-serif !important;
       font-size: 13px !important;
       padding: 4px !important;
       width: 308px !important;
       box-sizing: border-box !important;
+      z-index: 99999 !important;
+      user-select: none !important;
+      pointer-events: auto !important;
     }
     .flatpickr-calendar.arrowTop::before { border-bottom-color: #e8d5a8 !important; }
     .flatpickr-calendar.arrowTop::after  { border-bottom-color: #fff !important; }
@@ -865,26 +873,6 @@ export function adminLayout(
     }
     .tbl-refresh-sel:focus { box-shadow: none; }
   </style>
-  <script>
-  /* Called by flatpickr onload — guaranteed to run after flatpickr is defined */
-  function _fpInit() {
-    /* onReady: reassign _positionElement to the visible altInput.
-       Without this, Flatpickr positions relative to the hidden original input[type=date]
-       which returns {top:0,left:0} → calendar appears at scroll offset instead of near the field. */
-    function fixPos(_, __, fp) { if (fp.altInput) fp._positionElement = fp.altInput; }
-    var base = { locale: { firstDayOfWeek: 1 }, disableMobile: true, allowInput: false, onReady: fixPos };
-    /* :not(.flatpickr-input) + _flatpickr guard — prevents double-init */
-    document.querySelectorAll('input[type="date"]:not(.flatpickr-input)').forEach(function (el) {
-      if (el._flatpickr) return;
-      flatpickr(el, Object.assign({}, base, { dateFormat: 'Y-m-d', altInput: true, altFormat: 'd/m/Y' }));
-    });
-    document.querySelectorAll('input[type="datetime-local"]:not(.flatpickr-input)').forEach(function (el) {
-      if (el._flatpickr) return;
-      flatpickr(el, Object.assign({}, base, { dateFormat: 'Y-m-dTH:i', altInput: true, altFormat: 'd/m/Y H:i', enableTime: true, time_24hr: true }));
-    });
-  }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr" defer onload="_fpInit()"></script>
 </head>
 <body>
 <div class="layout">
@@ -940,8 +928,44 @@ export function adminLayout(
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js"></script>
 <script>
 (function () {
+  /* ── Flatpickr init ────────────────────────────────────────────────────
+     Loaded synchronously before this script so flatpickr is always
+     available here — no defer/onload timing issues. */
+  if (typeof flatpickr !== 'undefined') {
+    var fps = [];
+
+    /* Force-close in capture phase — fires before any stopPropagation */
+    function maybeClose(e) {
+      fps.forEach(function (fp) {
+        if (!fp.isOpen) return;
+        var inCal = fp.calendarContainer && fp.calendarContainer.contains(e.target);
+        var isInp = e.target === fp.input || (fp.altInput && e.target === fp.altInput);
+        if (!inCal && !isInp) fp.close();
+      });
+    }
+    document.addEventListener('mousedown', maybeClose, true);
+    document.addEventListener('touchstart', maybeClose, { capture: true, passive: true });
+
+    var base = {
+      locale:        { firstDayOfWeek: 1 },
+      disableMobile: true,
+      closeOnSelect: true,
+      onReady: function (d, s, fp) { fps.push(fp); },
+    };
+
+    document.querySelectorAll('input[type="date"]:not(.flatpickr-input)').forEach(function (el) {
+      if (el._flatpickr) return;
+      flatpickr(el, Object.assign({}, base, { dateFormat: 'Y-m-d' }));
+    });
+    document.querySelectorAll('input[type="datetime-local"]:not(.flatpickr-input)').forEach(function (el) {
+      if (el._flatpickr) return;
+      flatpickr(el, Object.assign({}, base, { dateFormat: 'Y-m-dTH:i', enableTime: true, time_24hr: true }));
+    });
+  }
+
   /* ── Auto-refresh widget ── */
   var KEY = 'adminRefreshSec';
   var _timer = null;
