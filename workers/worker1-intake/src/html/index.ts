@@ -6,3 +6,5 @@ export { usersPage, userFormPage, profilePage } from './users';
 export { webhooksPage, webhookFormPage, webhookDetailPage } from './webhooks';
 export { queueStatusPage } from './queues';
 export { loadtestPage } from './loadtest';
+export { clearDataPage } from './clear-data';
+export type { ClearDataStats } from './clear-data';

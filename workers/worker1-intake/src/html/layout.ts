@@ -403,6 +403,7 @@ export function adminLayout(
       ? [
           { href: '/admin/users', label: 'Users', page: 'users', icon: '👥' },
           { href: '/admin/webhooks', label: 'Webhooks', page: 'webhooks', icon: '🔗' },
+          { href: '/admin/clear-data', label: 'เคลียร์ข้อมูล', page: 'clear-data', icon: '🗑️' },
         ]
       : []),
   ];
