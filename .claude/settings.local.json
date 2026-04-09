@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(pnpm exec:*)",
-      "Bash(pnpm wrangler:*)"
+      "Bash(pnpm wrangler:*)",
+      "Bash(cd:*)"
     ]
   }
 }

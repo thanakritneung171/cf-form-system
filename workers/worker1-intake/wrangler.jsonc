@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
-
+  "account_id": "ae240d50da44461d1fc5e34f708ebec8",
   // Local dev port — ไม่ชนกับ worker อื่น
   "dev": { "port": 8787 },
 
