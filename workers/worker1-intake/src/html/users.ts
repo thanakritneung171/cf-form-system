@@ -66,56 +66,73 @@ export function userFormPage(
 
   const content = `
   <style>
-    .user-form-wrap {
-      max-width: 480px;
+    .uf-wrap {
+      max-width: 440px;
       margin: 0 auto;
+      padding: 0 1rem;
     }
-    .user-form-header {
+    /* Back link row */
+    .uf-back {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.6rem;
       margin-bottom: 1.75rem;
     }
-    .user-form-card {
-      background: #fff;
+    .uf-back a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.35rem 0.75rem;
       border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color .1s, color .1s;
+    }
+    .uf-back a:hover { border-color: var(--amber); color: var(--black); text-decoration: none; }
+    .uf-back-title {
+      font-size: 22px;
+      font-weight: 400;
+      color: var(--black);
+      letter-spacing: -0.03em;
+    }
+    /* Card */
+    .uf-card {
+      background: var(--cream);
+      border: 1px solid var(--amber-light);
       border-radius: 20px;
-      box-shadow: var(--shadow-card);
-      overflow: hidden;
+      padding: 2rem 2rem 1.75rem;
+      box-shadow:
+        rgba(127,99,21,0.13) -6px 14px 36px,
+        rgba(127,99,21,0.10) -16px 32px 64px,
+        rgba(127,99,21,0.06) -32px 64px 100px;
     }
-    .user-form-card-header {
-      padding: 1.25rem 1.75rem 0;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 1rem;
-      margin-bottom: 1.5rem;
+    /* Icon avatar */
+    .uf-avatar {
+      width: 44px; height: 44px;
+      background: var(--orange);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1rem;
     }
-    .user-form-card-title {
-      font-size: 1.1rem;
+    .uf-card-title {
+      font-size: 18px;
       font-weight: 600;
       color: var(--black);
       letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
     }
-    .user-form-card-sub {
-      font-size: 0.8rem;
+    .uf-card-sub {
+      font-size: 12px;
       color: var(--text-muted);
-      margin-top: 2px;
+      margin-bottom: 1.5rem;
     }
-    .user-form-body {
-      padding: 0 1.75rem 1.75rem;
-    }
-    .user-form-divider {
-      height: 2px;
-      background: linear-gradient(to right, #ffd900, #ffe295, #ffa110, #ff8105, #fb6424, #fa520f);
-      margin: 1.25rem 0;
-      border-radius: 2px;
-    }
-    .uf-group {
-      margin-bottom: 1.1rem;
-    }
+    /* Fields */
+    .uf-group { margin-bottom: 1rem; }
     .uf-group label {
       display: block;
       font-size: 10px;
-      font-weight: 400;
       color: var(--text-muted);
       margin-bottom: 0.4rem;
       text-transform: uppercase;
@@ -124,7 +141,7 @@ export function userFormPage(
     .uf-group input,
     .uf-group select {
       width: 100%;
-      padding: 0.65rem 0.875rem;
+      padding: 0.68rem 0.875rem;
       border: 1px solid var(--border-input);
       border-radius: 10px;
       background: var(--ivory);
@@ -133,6 +150,8 @@ export function userFormPage(
       font-family: Arial, ui-sans-serif, system-ui, sans-serif;
       transition: border-color .08s, box-shadow .08s, background .08s;
     }
+    .uf-group input:hover,
+    .uf-group select:hover { border-color: var(--amber-light); }
     .uf-group input:focus,
     .uf-group select:focus {
       outline: none;
@@ -145,85 +164,127 @@ export function userFormPage(
       cursor: not-allowed;
       color: var(--text-muted);
     }
+    .uf-group input::placeholder { color: var(--text-light); font-size: 13px; }
+    /* Two-col row for username + role */
+    .uf-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    /* Active checkbox */
     .uf-check {
       display: flex;
       align-items: center;
       gap: 0.6rem;
-      margin-bottom: 1.1rem;
+      padding: 0.65rem 0.875rem;
+      border: 1px solid var(--border-input);
+      border-radius: 10px;
+      background: var(--ivory);
+      cursor: pointer;
+      margin-bottom: 1rem;
+      transition: border-color .08s;
     }
+    .uf-check:hover { border-color: var(--amber-light); }
     .uf-check input[type="checkbox"] {
-      width: 16px; height: 16px;
+      width: 15px; height: 15px;
       accent-color: var(--orange);
       cursor: pointer;
+      flex-shrink: 0;
     }
-    .uf-check label {
-      margin: 0;
+    .uf-check-label {
       font-size: 13px;
       color: var(--black);
       cursor: pointer;
-      text-transform: none;
-      letter-spacing: 0;
+      user-select: none;
+    }
+    /* Change password accordion */
+    .uf-details {
+      margin-bottom: 1rem;
     }
     .uf-details summary {
       cursor: pointer;
-      font-size: 0.82rem;
+      font-size: 12px;
       color: var(--text-muted);
-      margin-bottom: 0.75rem;
       list-style: none;
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      padding: 0.5rem 0;
+      border-top: 1px dashed var(--border);
+      user-select: none;
     }
-    .uf-details summary::before { content: '▸'; }
+    .uf-details summary::before { content: '▸'; font-size: 10px; }
     .uf-details[open] summary::before { content: '▾'; }
-    .btn-submit {
+    .uf-details[open] .uf-group { margin-top: 0.75rem; }
+    /* Divider */
+    .uf-divider {
+      height: 2px;
+      background: linear-gradient(to right, #ffd900, #ffe295, #ffa110, #ff8105, #fb6424, #fa520f);
+      margin: 1.5rem 0 1.25rem;
+      border-radius: 2px;
+    }
+    /* Submit */
+    .uf-submit {
       width: 100%;
-      padding: 0.85rem 1rem;
+      padding: 0.875rem 1rem;
       background: var(--black);
       color: #fff;
       border: none;
       border-radius: 10px;
-      font-size: 13px;
-      font-weight: 400;
+      font-size: 12px;
       font-family: Arial, ui-sans-serif, system-ui, sans-serif;
       cursor: pointer;
-      letter-spacing: .1em;
+      letter-spacing: .12em;
       text-transform: uppercase;
       transition: background .08s;
-      margin-top: 0.25rem;
     }
-    .btn-submit:hover { background: #2e1a06; }
-    .btn-submit:active { background: var(--orange); }
+    .uf-submit:hover { background: #2e1a06; }
+    .uf-submit:active { background: var(--orange); }
+    /* Error */
+    .uf-error {
+      background: #fff0e8;
+      border: 1px solid var(--orange);
+      border-left: 3px solid var(--orange);
+      border-radius: 10px;
+      color: #7a2000;
+      padding: 0.65rem 0.875rem;
+      font-size: 13px;
+      margin-bottom: 1.25rem;
+    }
   </style>
 
-  <div class="user-form-wrap">
+  <div class="uf-wrap">
 
-    <div class="user-form-header">
-      <a href="/admin/users" class="btn btn-outline btn-sm">← กลับ</a>
-      <div class="page-title">${esc(title)}</div>
+    <!-- Back + page title -->
+    <div class="uf-back">
+      <a href="/admin/users">← กลับ</a>
+      <span class="uf-back-title">${esc(title)}</span>
     </div>
 
-    ${error ? `<div class="alert alert-danger" style="margin-bottom:1rem">${esc(error)}</div>` : ''}
+    <div class="uf-card">
 
-    <div class="user-form-card">
-      <div class="user-form-card-header">
-        <div class="user-form-card-title">${isEdit ? 'แก้ไขข้อมูลผู้ใช้' : 'ข้อมูลผู้ใช้ใหม่'}</div>
-        <div class="user-form-card-sub">${isEdit ? `แก้ไขข้อมูลของ ${editUser!.username}` : 'กรอกข้อมูลเพื่อสร้างบัญชีใหม่'}</div>
+      <!-- Avatar + heading -->
+      <div class="uf-avatar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="3.5" stroke="#fff" stroke-width="1.5"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#fff" stroke-width="1.5" stroke-linecap="square"/>
+        </svg>
       </div>
-      <div class="user-form-body">
-        <form method="POST" action="${isEdit ? `/admin/users/${editUser!.id}` : '/admin/users'}">
-          <input type="hidden" name="_csrf" value="${esc(csrfToken ?? '')}">
+      <div class="uf-card-title">${isEdit ? `แก้ไข — ${editUser!.username}` : 'บัญชีใหม่'}</div>
+      <div class="uf-card-sub">${isEdit ? 'แก้ไขข้อมูลและสิทธิ์การใช้งาน' : 'กรอกข้อมูลเพื่อสร้างผู้ใช้งานใหม่'}</div>
 
+      ${error ? `<div class="uf-error">${esc(error)}</div>` : ''}
+
+      <form method="POST" action="${isEdit ? `/admin/users/${editUser!.id}` : '/admin/users'}">
+        <input type="hidden" name="_csrf" value="${esc(csrfToken ?? '')}">
+
+        <!-- Username + Role in 2 cols -->
+        <div class="uf-row-2">
           <div class="uf-group">
             <label>Username</label>
-            <input type="text" name="username" value="${esc(editUser?.username ?? '')}" required placeholder="เช่น johndoe" ${isEdit ? 'readonly' : ''}>
+            <input type="text" name="username" value="${esc(editUser?.username ?? '')}" required
+              placeholder="johndoe" ${isEdit ? 'readonly' : ''}>
           </div>
-
-          <div class="uf-group">
-            <label>Email</label>
-            <input type="email" name="email" value="${esc(editUser?.email ?? '')}" required placeholder="example@domain.com">
-          </div>
-
           <div class="uf-group">
             <label>Role</label>
             <select name="role" required>
@@ -232,34 +293,39 @@ export function userFormPage(
               ).join('')}
             </select>
           </div>
+        </div>
 
-          ${!isEdit ? `
+        <div class="uf-group">
+          <label>Email</label>
+          <input type="email" name="email" value="${esc(editUser?.email ?? '')}" required
+            placeholder="example@domain.com">
+        </div>
+
+        ${!isEdit ? `
+        <div class="uf-group">
+          <label>รหัสผ่าน</label>
+          <input type="password" name="password" required minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร">
+        </div>` : ''}
+
+        ${isEdit ? `
+        <label class="uf-check" for="is_active">
+          <input type="checkbox" name="is_active" value="1" id="is_active" ${editUser!.is_active ? 'checked' : ''}>
+          <span class="uf-check-label">เปิดใช้งาน (Active)</span>
+        </label>
+
+        <details class="uf-details">
+          <summary>เปลี่ยนรหัสผ่าน (ไม่บังคับ)</summary>
           <div class="uf-group">
-            <label>รหัสผ่าน</label>
-            <input type="password" name="password" required minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร">
-          </div>` : ''}
-
-          ${isEdit ? `
-          <div class="uf-check">
-            <input type="checkbox" name="is_active" value="1" id="is_active" ${editUser!.is_active ? 'checked' : ''}>
-            <label for="is_active">เปิดใช้งาน (Active)</label>
+            <label>รหัสผ่านใหม่</label>
+            <input type="password" name="password" minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร">
           </div>
+        </details>` : ''}
 
-          <details class="uf-details" style="margin-bottom:1.1rem">
-            <summary>เปลี่ยนรหัสผ่าน (ไม่บังคับ)</summary>
-            <div class="uf-group">
-              <label>รหัสผ่านใหม่</label>
-              <input type="password" name="password" minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร">
-            </div>
-          </details>` : ''}
+        <div class="uf-divider"></div>
+        <button type="submit" class="uf-submit">${isEdit ? 'บันทึกการเปลี่ยนแปลง' : 'สร้าง User'}</button>
+      </form>
 
-          <div class="user-form-divider"></div>
-
-          <button type="submit" class="btn-submit">${isEdit ? 'บันทึกการเปลี่ยนแปลง' : 'สร้าง User'}</button>
-        </form>
-      </div>
     </div>
-
   </div>`;
 
   return adminLayout(title, content, currentUser, 'users');
