@@ -226,7 +226,7 @@ export const ADMIN_CSS = `
   }
   .topbar h1 { font-size: 1.05rem; font-weight: 600; color: var(--text); }
   .topbar .topbar-meta { font-size: 0.78rem; color: var(--text-muted); }
-  .content { padding: 1.5rem 1.75rem; flex: 1; max-width: 1200px; }
+  .content { padding: 1.5rem 1.75rem; flex: 1; width: 100%; }
 
   /* Cards */
   .card {
@@ -365,11 +365,41 @@ export const ADMIN_CSS = `
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     margin-top: 1.25rem;
-    font-size: 0.82rem;
-    color: var(--text-muted);
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
   }
+  .page-numbers { display: flex; gap: 0.2rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background .12s, border-color .12s;
+    cursor: pointer;
+  }
+  .page-btn:hover:not(.active):not(.disabled) { background: #f0ece6; border-color: #c9b99a; text-decoration: none; color: var(--text); }
+  .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); pointer-events: none; }
+  .page-btn.disabled { opacity: 0.35; pointer-events: none; }
+  .page-ellipsis { color: var(--text-muted); padding: 0 0.15rem; font-size: 0.85rem; line-height: 32px; }
+  .page-jump {
+    display: flex; align-items: center; gap: 0.4rem;
+    margin-left: 0.5rem;
+    border-left: 1px solid var(--border);
+    padding-left: 0.75rem;
+  }
+  .page-jump input[type=number] { width: 52px; height: 32px; padding: 0 0.4rem; font-size: 0.82rem; text-align: center; margin: 0; }
+  .page-info { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 
   /* Page header */
   .page-header {
@@ -385,6 +415,65 @@ export const ADMIN_CSS = `
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
   @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } .sidebar { display: none; } .main { margin-left: 0; } }
 `;
+
+// ===== Shared pagination helper =====
+
+/**
+ * Generate a full-featured pagination bar.
+ * @param page        current page (1-based)
+ * @param totalPages  total number of pages
+ * @param total       total record count (for display)
+ * @param hrefOf      function that returns the href string for page `p`
+ * @param pageParam   query-string param name used for the "go to page" jump form (default: 'page')
+ */
+export function paginationHtml(
+  page: number,
+  totalPages: number,
+  total: number,
+  hrefOf: (p: number) => string,
+  pageParam = 'page',
+): string {
+  if (totalPages <= 1) {
+    return `<div class="pagination"><span class="page-info">${total} รายการ</span></div>`;
+  }
+
+  // Build page-number list with ellipsis
+  const pages: (number | '...')[] = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || (p >= page - 2 && p <= page + 2)) {
+      pages.push(p);
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...');
+    }
+  }
+
+  const pageButtons = pages.map(p => {
+    if (p === '...') return `<span class="page-ellipsis">…</span>`;
+    const n = p as number;
+    return `<a href="${esc(hrefOf(n))}" class="page-btn${n === page ? ' active' : ''}">${n}</a>`;
+  }).join('');
+
+  const firstDis = page === 1 ? ' disabled' : '';
+  const lastDis  = page === totalPages ? ' disabled' : '';
+
+  // JS for "go to page" — reads/writes URL search params client-side
+  const jumpJs = `event.preventDefault();var v=parseInt(this.p.value);if(v>=1&&v<=${totalPages}){var u=new URL(location.href);u.searchParams.set('${pageParam}',v);location.href=u.toString();}`;
+
+  return `
+  <div class="pagination">
+    <a href="${esc(hrefOf(1))}" class="page-btn${firstDis}" title="หน้าแรก">«</a>
+    <a href="${esc(hrefOf(Math.max(1, page - 1)))}" class="page-btn${firstDis}" title="ก่อนหน้า">‹</a>
+    <div class="page-numbers">${pageButtons}</div>
+    <a href="${esc(hrefOf(Math.min(totalPages, page + 1)))}" class="page-btn${lastDis}" title="ถัดไป">›</a>
+    <a href="${esc(hrefOf(totalPages))}" class="page-btn${lastDis}" title="หน้าสุดท้าย">»</a>
+    <form class="page-jump" onsubmit="${esc(jumpJs)}">
+      <span class="page-info">ไปหน้า</span>
+      <input name="p" type="number" min="1" max="${totalPages}" placeholder="${page}">
+      <button type="submit" class="btn btn-outline btn-xs">ไป</button>
+      <span class="page-info">${page} / ${totalPages} &nbsp;(${total} รายการ)</span>
+    </form>
+  </div>`;
+}
 
 // ===== Admin layout =====
 

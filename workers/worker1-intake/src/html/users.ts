@@ -1,8 +1,17 @@
 import type { User } from 'shared/types';
 import { esc } from '../validators';
-import { adminLayout, roleBadge, formatDate } from './layout';
+import { adminLayout, roleBadge, formatDate, paginationHtml } from './layout';
 
-export function usersPage(users: User[], currentUser: User, flash?: string): string {
+export function usersPage(
+  users: User[],
+  total: number,
+  page: number,
+  perPage: number,
+  currentUser: User,
+  flash?: string,
+): string {
+  const totalPages = Math.ceil(total / perPage);
+
   const rows = users.map(u =>
     `<tr>
       <td>
@@ -40,7 +49,8 @@ export function usersPage(users: User[], currentUser: User, flash?: string): str
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-  </div>`;
+  </div>
+  ${paginationHtml(page, totalPages, total, p => `?page=${p}`)}`;
 
   return adminLayout('Users', content, currentUser, 'users', flash);
 }

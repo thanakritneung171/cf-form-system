@@ -545,8 +545,16 @@ async function handleAdminUsers(req: Request, env: Env): Promise<Response> {
 
   const url = new URL(req.url);
   const flash = url.searchParams.get('flash') ?? undefined;
-  const users = await env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all<User>();
-  return html(usersPage(users.results, user, flash));
+  const perPage = 50;
+  const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
+  const offset = (page - 1) * perPage;
+
+  const [countRow, users] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) as n FROM users').first<{ n: number }>(),
+    env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(perPage, offset).all<User>(),
+  ]);
+  const total = countRow?.n ?? 0;
+  return html(usersPage(users.results, total, page, perPage, user, flash));
 }
 
 async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
@@ -697,12 +705,19 @@ async function handleAdminWebhooks(req: Request, env: Env): Promise<Response> {
 
   const url = new URL(req.url);
   const flash = url.searchParams.get('flash') ?? undefined;
+  const perPage = 20;
+  const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
+  const offset = (page - 1) * perPage;
 
-  const webhooks = await env.DB.prepare(
-    'SELECT w.*, COUNT(wd.id) as delivery_count FROM webhooks w LEFT JOIN webhook_deliveries wd ON wd.webhook_id = w.id GROUP BY w.id ORDER BY w.created_at DESC',
-  ).all<Webhook & { delivery_count: number }>();
+  const [countRow, webhooks] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) as n FROM webhooks').first<{ n: number }>(),
+    env.DB.prepare(
+      'SELECT w.*, COUNT(wd.id) as delivery_count FROM webhooks w LEFT JOIN webhook_deliveries wd ON wd.webhook_id = w.id GROUP BY w.id ORDER BY w.created_at DESC LIMIT ? OFFSET ?',
+    ).bind(perPage, offset).all<Webhook & { delivery_count: number }>(),
+  ]);
+  const total = countRow?.n ?? 0;
 
-  return html(webhooksPage(webhooks.results, user, flash));
+  return html(webhooksPage(webhooks.results, total, page, perPage, user, flash));
 }
 
 async function handleAdminWebhookNew(req: Request, env: Env): Promise<Response> {
@@ -745,16 +760,21 @@ async function handleAdminWebhookDetail(req: Request, env: Env, webhookId: strin
 
   const url = new URL(req.url);
   const flash = url.searchParams.get('flash') ?? undefined;
+  const perPage = 25;
+  const deliveryPage = Math.max(1, parseInt(url.searchParams.get('delivery_page') ?? '1'));
+  const offset = (deliveryPage - 1) * perPage;
 
-  const [webhook, deliveries] = await Promise.all([
+  const [webhook, deliveryCountRow, deliveries] = await Promise.all([
     env.DB.prepare('SELECT * FROM webhooks WHERE id=?').bind(webhookId).first<Webhook>(),
-    env.DB.prepare('SELECT * FROM webhook_deliveries WHERE webhook_id=? ORDER BY created_at DESC LIMIT 50')
-      .bind(webhookId).all<WebhookDelivery>(),
+    env.DB.prepare('SELECT COUNT(*) as n FROM webhook_deliveries WHERE webhook_id=?').bind(webhookId).first<{ n: number }>(),
+    env.DB.prepare('SELECT * FROM webhook_deliveries WHERE webhook_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?')
+      .bind(webhookId, perPage, offset).all<WebhookDelivery>(),
   ]);
 
   if (!webhook) return new Response('Not found', { status: 404 });
+  const deliveryTotal = deliveryCountRow?.n ?? 0;
 
-  return html(webhookDetailPage(webhook, deliveries.results, user, flash?.includes('Secret:') ?? false, flash));
+  return html(webhookDetailPage(webhook, deliveries.results, deliveryTotal, deliveryPage, perPage, user, flash?.includes('Secret:') ?? false, flash));
 }
 
 async function handleAdminWebhookToggle(req: Request, env: Env, webhookId: string): Promise<Response> {

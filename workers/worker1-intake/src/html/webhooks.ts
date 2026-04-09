@@ -1,13 +1,18 @@
 import type { User, Webhook, WebhookDelivery } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate } from './layout';
+import { adminLayout, statusBadge, formatDate, paginationHtml } from './layout';
 
 export function webhooksPage(
   webhooks: (Webhook & { delivery_count?: number; last_delivery?: string })[],
+  total: number,
+  page: number,
+  perPage: number,
   user: User,
   flash?: string,
 ): string {
+  const totalPages = Math.ceil(total / perPage);
+
   const rows = webhooks.map(w =>
     `<tr>
       <td>
@@ -40,7 +45,7 @@ export function webhooksPage(
     <div class="page-title">Webhooks</div>
     <a href="/admin/webhooks/new" class="btn btn-primary btn-sm">+ สร้าง Webhook</a>
   </div>
-  ${webhooks.length === 0 ? `
+  ${total === 0 ? `
   <div class="card">
     <div class="card-body" style="text-align:center;padding:3rem;color:var(--text-muted)">
       <div style="font-size:2rem;margin-bottom:0.5rem">🔗</div>
@@ -53,7 +58,8 @@ export function webhooksPage(
       <thead><tr><th>ชื่อ</th><th>URL</th><th>Events</th><th>Status</th><th style="text-align:center">Deliveries</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-  </div>`}`;
+  </div>
+  ${paginationHtml(page, totalPages, total, p => `?page=${p}`)}`}`;
 
   return adminLayout('Webhooks', content, user, 'webhooks', flash);
 }
@@ -107,10 +113,15 @@ export function webhookFormPage(user: User, error?: string, csrfToken?: string):
 export function webhookDetailPage(
   webhook: Webhook,
   deliveries: WebhookDelivery[],
+  deliveryTotal: number,
+  deliveryPage: number,
+  deliveryPerPage: number,
   user: User,
   secretVisible: boolean,
   flash?: string,
 ): string {
+  const deliveryTotalPages = Math.ceil(deliveryTotal / deliveryPerPage);
+
   const deliveryRows = deliveries.map(d =>
     `<tr>
       <td>${statusBadge(d.status)}</td>
@@ -121,6 +132,10 @@ export function webhookDetailPage(
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:0.78rem;color:var(--text-muted)">${esc(d.response_body?.slice(0, 100) ?? '—')}</td>
     </tr>`,
   ).join('');
+
+  const deliveryPagination = deliveryTotal > deliveryPerPage
+    ? paginationHtml(deliveryPage, deliveryTotalPages, deliveryTotal, p => `?delivery_page=${p}`, 'delivery_page')
+    : '';
 
   const content = `
   <div class="page-header">
@@ -159,15 +174,16 @@ export function webhookDetailPage(
     </div>
 
     <div class="card">
-      <div class="card-header">Deliveries ล่าสุด (${deliveries.length})</div>
-      ${deliveries.length === 0
+      <div class="card-header">Deliveries (${deliveryTotal})</div>
+      ${deliveryTotal === 0
         ? '<div class="card-body" style="color:var(--text-muted);font-size:0.875rem">ยังไม่มี delivery</div>'
         : `<div class="table-wrap" style="border:none;border-radius:0">
             <table>
               <thead><tr><th>Status</th><th>Event</th><th>เวลา</th><th style="text-align:center">Code</th><th style="text-align:center">Attempts</th><th>Response</th></tr></thead>
               <tbody>${deliveryRows}</tbody>
             </table>
-          </div>`}
+          </div>
+          ${deliveryPagination}`}
     </div>
   </div>`;
 

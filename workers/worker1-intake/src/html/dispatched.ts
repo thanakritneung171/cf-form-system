@@ -1,7 +1,7 @@
 import type { Submission, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, paginationHtml } from './layout';
 
 function sortLink(label: string, col: string, filters: Record<string, string>): string {
   const active = (filters.sort ?? 'dispatched_at') === col;
@@ -108,11 +108,7 @@ export function dispatchedPage(
     </table>
   </div>
 
-  <div class="pagination">
-    ${page > 1 ? `<a href="?${new URLSearchParams({ ...filters, page: String(page - 1) })}" class="btn btn-outline btn-sm">← ก่อนหน้า</a>` : ''}
-    <span>หน้า ${page}/${totalPages} (${total} รายการ)</span>
-    ${page < totalPages ? `<a href="?${new URLSearchParams({ ...filters, page: String(page + 1) })}" class="btn btn-outline btn-sm">ถัดไป →</a>` : ''}
-  </div>
+  ${paginationHtml(page, totalPages, total, p => '?' + new URLSearchParams({ ...filters, page: String(p) }))}
 
   <dialog id="errorDialog" style="border:1px solid var(--border);border-radius:var(--radius);padding:0;max-width:600px;width:90%">
     <div style="background:#1c1917;padding:1rem 1.25rem;border-radius:var(--radius) var(--radius) 0 0;display:flex;justify-content:space-between;align-items:center">

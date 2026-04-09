@@ -1,7 +1,7 @@
 import type { Submission, SubmissionFile, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS, paginationHtml } from './layout';
 
 export function submissionsPage(
   submissions: Submission[],
@@ -93,11 +93,7 @@ export function submissionsPage(
     </table>
   </div>
 
-  <div class="pagination">
-    ${page > 1 ? `<a href="?${new URLSearchParams({ ...filters, page: String(page - 1) })}" class="btn btn-outline btn-sm">← ก่อนหน้า</a>` : ''}
-    <span>หน้า ${page}/${totalPages} (${total} รายการ)</span>
-    ${page < totalPages ? `<a href="?${new URLSearchParams({ ...filters, page: String(page + 1) })}" class="btn btn-outline btn-sm">ถัดไป →</a>` : ''}
-  </div>
+  ${paginationHtml(page, totalPages, total, p => '?' + new URLSearchParams({ ...filters, page: String(p) }))}
 
   ${canRetry ? `<script>
     function toggleAll(cb) {

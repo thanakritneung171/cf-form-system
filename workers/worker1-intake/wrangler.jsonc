@@ -59,7 +59,7 @@
         "queue": "intake-contact",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
-        "max_concurrency": 10,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-contact-dlq"
       },
@@ -68,7 +68,7 @@
         "queue": "intake-job-application",
         "max_batch_size": 20,
         "max_batch_timeout": 10,
-        "max_concurrency": 5,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-job-application-dlq"
       },
@@ -77,7 +77,7 @@
         "queue": "intake-complaint",
         "max_batch_size": 30,
         "max_batch_timeout": 10,
-        "max_concurrency": 5,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-complaint-dlq"
       },
@@ -86,7 +86,7 @@
         "queue": "intake-event-registration",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
-        "max_concurrency": 15,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-event-registration-dlq"
       },
@@ -95,7 +95,7 @@
         "queue": "intake-product-inquiry",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
-        "max_concurrency": 10,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-product-inquiry-dlq"
       },
@@ -104,7 +104,7 @@
         "queue": "intake-warranty-claim",
         "max_batch_size": 30,
         "max_batch_timeout": 10,
-        "max_concurrency": 5,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-warranty-claim-dlq"
       },
@@ -113,7 +113,7 @@
         "queue": "intake-newsletter",
         "max_batch_size": 100,
         "max_batch_timeout": 3,
-        "max_concurrency": 20,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-newsletter-dlq"
       },
@@ -122,7 +122,7 @@
         "queue": "intake-feedback",
         "max_batch_size": 100,
         "max_batch_timeout": 5,
-        "max_concurrency": 10,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-feedback-dlq"
       },
@@ -131,7 +131,7 @@
         "queue": "intake-partnership",
         "max_batch_size": 10,
         "max_batch_timeout": 15,
-        "max_concurrency": 3,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-partnership-dlq"
       },
@@ -140,7 +140,7 @@
         "queue": "intake-incident-report",
         "max_batch_size": 10,
         "max_batch_timeout": 10,
-        "max_concurrency": 3,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "intake-incident-report-dlq"
       },
@@ -149,7 +149,7 @@
         "queue": "webhook-queue",
         "max_batch_size": 50,
         "max_batch_timeout": 2,
-        "max_concurrency": 15,
+        "max_concurrency": 250,
         "max_retries": 3,
         "dead_letter_queue": "webhook-dlq"
       }
