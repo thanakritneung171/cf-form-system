@@ -54,21 +54,26 @@ async function handleScheduled(env: Env): Promise<void> {
   log('INFO', 'CRON', `Started at ${new Date(now).toISOString()}`);
 
   // ===== Recovery: rescue dispatching ที่ค้างนานกว่า 10 นาที =====
+  // สอง UPDATE นี้ target rows คนละ set (retry_count >= 3 vs < 3) → รัน parallel ได้
   const staleThreshold = now - 10 * 60 * 1000;
 
-  // snapshot จำนวน dispatching ทั้งหมดตอนนี้ก่อน recovery
-  const dispatchingCount = await env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM submissions WHERE status='dispatching'`,
-  ).first<{ cnt: number }>();
-  log('INFO', 'CRON', `Current dispatching count: ${dispatchingCount?.cnt ?? 0}`);
+  const [failedResult, resetResult] = await Promise.all([
+    // retry_count >= 3 → mark failed
+    env.DB.prepare(`
+      UPDATE submissions
+      SET status='failed', completed_at=?, last_error='Dispatching timeout: max retries exceeded'
+      WHERE status='dispatching' AND dispatched_at < ? AND retry_count >= 3
+      RETURNING id, form_type, retry_count
+    `).bind(now, staleThreshold).all<{ id: string; form_type: string; retry_count: number }>(),
 
-  // retry_count >= 3 → mark failed
-  const failedResult = await env.DB.prepare(`
-    UPDATE submissions
-    SET status='failed', completed_at=?, last_error='Dispatching timeout: max retries exceeded'
-    WHERE status='dispatching' AND dispatched_at < ? AND retry_count >= 3
-    RETURNING id, form_type, retry_count
-  `).bind(now, staleThreshold).all<{ id: string; form_type: string; retry_count: number }>();
+    // retry_count < 3 → reset กลับ pending + นับ retry
+    env.DB.prepare(`
+      UPDATE submissions
+      SET status='pending', dispatched_at=NULL, retry_count=retry_count+1
+      WHERE status='dispatching' AND dispatched_at < ? AND retry_count < 3
+      RETURNING id, form_type, retry_count
+    `).bind(staleThreshold).all<{ id: string; form_type: string; retry_count: number }>(),
+  ]);
 
   if (failedResult.results.length > 0) {
     log('WARN', 'CRON:RECOVERY', `Marked ${failedResult.results.length} stale dispatching → failed`);
@@ -76,14 +81,6 @@ async function handleScheduled(env: Env): Promise<void> {
       log('WARN', 'CRON:RECOVERY', `  → failed: ${r.id} [${r.form_type}] retry_count=${r.retry_count}`);
     }
   }
-
-  // retry_count < 3 → reset กลับ pending + นับ retry
-  const resetResult = await env.DB.prepare(`
-    UPDATE submissions
-    SET status='pending', dispatched_at=NULL, retry_count=retry_count+1
-    WHERE status='dispatching' AND dispatched_at < ? AND retry_count < 3
-    RETURNING id, form_type, retry_count
-  `).bind(staleThreshold).all<{ id: string; form_type: string; retry_count: number }>();
 
   if (resetResult.results.length > 0) {
     log('WARN', 'CRON:RECOVERY', `Reset ${resetResult.results.length} stale dispatching → pending (will retry)`);
@@ -153,7 +150,7 @@ async function handleDispatchQueue(batch: MessageBatch<DispatchMessage>, env: En
 
   let ok = 0, retried = 0, failed = 0;
 
-  for (const msg of batch.messages) {
+  await Promise.all(batch.messages.map(async (msg) => {
     const submissionId = msg.body.submission_id;
     try {
       const result = await processSubmission(submissionId, env, msg);
@@ -165,7 +162,7 @@ async function handleDispatchQueue(batch: MessageBatch<DispatchMessage>, env: En
       msg.retry({ delaySeconds: 30 });
       retried++;
     }
-  }
+  }));
 
   log('INFO', ctx, `Batch done — complete=${ok} retry=${retried} failed=${failed}`);
 }
@@ -178,10 +175,12 @@ async function processSubmission(
   const ctx = `PROCESS:${submissionId.slice(0, 8)}`;
   const now = Date.now();
 
-  // ===== 1. Load submission =====
-  log('INFO', ctx, 'Loading submission from D1');
-  const submission = await env.DB.prepare('SELECT * FROM submissions WHERE id=?')
-    .bind(submissionId).first<Submission>();
+  // ===== 1+2. Load submission + files in parallel =====
+  log('INFO', ctx, 'Loading submission + files from D1');
+  const [submission, files] = await Promise.all([
+    env.DB.prepare('SELECT * FROM submissions WHERE id=?').bind(submissionId).first<Submission>(),
+    env.DB.prepare('SELECT * FROM submission_files WHERE submission_id=?').bind(submissionId).all<SubmissionFile>(),
+  ]);
 
   if (!submission) {
     log('WARN', ctx, 'Submission not found in D1 — ack and skip');
@@ -189,43 +188,31 @@ async function processSubmission(
     return 'failed';
   }
 
-  log('INFO', ctx, `Loaded: form_type=${submission.form_type} status=${submission.status} retry_count=${submission.retry_count}`);
-
-  // ===== 2. Load files =====
-  const files = await env.DB.prepare('SELECT * FROM submission_files WHERE submission_id=?')
-    .bind(submissionId).all<SubmissionFile>();
-
-  log('INFO', ctx, `Files in D1: ${files.results.length}`);
+  log('INFO', ctx, `Loaded: form_type=${submission.form_type} status=${submission.status} retry_count=${submission.retry_count} files=${files.results.length}`);
 
   const data = JSON.parse(submission.data);
 
-  // ===== 3. Fetch files from R2 → base64 =====
-  const filePayloads: Array<{
-    field_name: string;
-    original_filename: string;
-    content_type: string;
-    size_bytes: number;
-    content_base64: string;
-  }> = [];
-
-  for (const file of files.results) {
-    log('INFO', ctx, `Fetching R2: ${file.r2_key}`);
-    const obj = await env.UPLOADS.get(file.r2_key);
-    if (!obj) {
-      log('WARN', ctx, `R2 object not found: ${file.r2_key} — skipping file`);
-      continue;
-    }
-    const bytes = await obj.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
-    log('INFO', ctx, `R2 fetched: ${file.original_filename} (${file.size_bytes} bytes → base64 ${base64.length} chars)`);
-    filePayloads.push({
-      field_name: file.field_name,
-      original_filename: file.original_filename,
-      content_type: file.content_type,
-      size_bytes: file.size_bytes,
-      content_base64: base64,
-    });
-  }
+  // ===== 3. Fetch files from R2 → base64 (parallel) =====
+  log('INFO', ctx, `Fetching ${files.results.length} file(s) from R2`);
+  const filePayloads = (await Promise.all(
+    files.results.map(async (file) => {
+      const obj = await env.UPLOADS.get(file.r2_key);
+      if (!obj) {
+        log('WARN', ctx, `R2 object not found: ${file.r2_key} — skipping file`);
+        return null;
+      }
+      const bytes = await obj.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+      log('INFO', ctx, `R2 fetched: ${file.original_filename} (${file.size_bytes} bytes → base64 ${base64.length} chars)`);
+      return {
+        field_name: file.field_name,
+        original_filename: file.original_filename,
+        content_type: file.content_type,
+        size_bytes: file.size_bytes,
+        content_base64: base64,
+      };
+    }),
+  )).filter((p): p is NonNullable<typeof p> => p !== null);
 
   // ===== 4. POST to Worker 3 =====
   const worker3Url = `${env.WORKER3_URL}/api/receive`;
@@ -296,22 +283,25 @@ async function fireWebhookEvent(eventType: WebhookEvent, submissionId: string, f
   try {
     const webhooks = await env.DB.prepare('SELECT * FROM webhooks WHERE is_active=1').all<Webhook>();
 
-    for (const wh of webhooks.results) {
+    // filter ก่อน แล้วค่อย dispatch ทุก webhook พร้อมกัน
+    const applicable = webhooks.results.filter(wh => {
       const events: string[] = JSON.parse(wh.events);
-      if (!events.includes(eventType)) continue;
+      if (!events.includes(eventType)) return false;
       if (wh.form_types) {
         const allowed: string[] = JSON.parse(wh.form_types);
-        if (!allowed.includes(formType)) continue;
+        if (!allowed.includes(formType)) return false;
       }
+      return true;
+    });
 
+    await Promise.all(applicable.map(async (wh) => {
       const deliveryId = 'del_' + generateToken(8);
       await env.DB.prepare(
         "INSERT INTO webhook_deliveries (id, webhook_id, event_type, submission_id, status, attempt_count, created_at) VALUES (?,?,?,?,'pending',0,?)",
       ).bind(deliveryId, wh.id, eventType, submissionId, Date.now()).run();
-
       await env.WEBHOOK_QUEUE.send({ webhook_id: wh.id, event_type: eventType, submission_id: submissionId, delivery_id: deliveryId, attempt: 0 });
       log('INFO', `WEBHOOK:${submissionId.slice(0, 8)}`, `Queued ${eventType} → webhook ${wh.id}`);
-    }
+    }));
   } catch (err) {
     log('ERROR', 'WEBHOOK', 'fireWebhookEvent error', err);
   }

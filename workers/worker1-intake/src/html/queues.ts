@@ -12,7 +12,12 @@ interface QueueRow {
   avg_duration_s: number | null;
 }
 
-export function queueStatusPage(rows: QueueRow[], user: User, flash?: string): string {
+export function queueStatusPage(
+  rows: QueueRow[],
+  filters: { from: string; to: string },
+  user: User,
+  flash?: string,
+): string {
   const allTypes = new Set(FORM_TYPES as string[]);
   const existing = new Set(rows.map(r => r.form_type));
   const missing: QueueRow[] = [...allTypes]
@@ -65,12 +70,28 @@ export function queueStatusPage(rows: QueueRow[], user: User, flash?: string): s
     ? Math.round((totComplete / (totComplete + totFailed)) * 100)
     : null;
 
+  const rangeLabel = (filters.from || filters.to)
+    ? `${filters.from ? filters.from.replace('T', ' ') : '…'} — ${filters.to ? filters.to.replace('T', ' ') : '…'}`
+    : '24h ล่าสุด';
+  const isCustom = !!(filters.from || filters.to);
+
   const content = `
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
     <div class="page-title">Queue Status</div>
-    <span style="font-size:0.78rem;color:var(--text-muted)">สถิติ 24h ล่าสุด · รีเฟรชทุก 30 วินาที</span>
+    <span style="font-size:0.78rem;color:var(--text-muted)">${esc(rangeLabel)}${isCustom ? '' : ' · รีเฟรชทุก 30 วินาที'}</span>
   </div>
-  <meta http-equiv="refresh" content="30">
+  ${isCustom ? '' : '<meta http-equiv="refresh" content="30">'}
+
+  <div class="filter-bar">
+    <form method="GET" action="/admin/queues" style="display:contents">
+      <label style="font-size:0.82rem;color:var(--text-muted);white-space:nowrap">ตั้งแต่</label>
+      <input type="datetime-local" name="from" value="${esc(filters.from)}" style="width:auto">
+      <label style="font-size:0.82rem;color:var(--text-muted);white-space:nowrap">ถึง</label>
+      <input type="datetime-local" name="to" value="${esc(filters.to)}" style="width:auto">
+      <button type="submit" class="btn btn-primary btn-sm">ดู</button>
+      <a href="/admin/queues" class="btn btn-outline btn-sm">รีเซ็ต (24h)</a>
+    </form>
+  </div>
 
   <div class="stat-grid">
     <div class="stat-card">
@@ -83,11 +104,11 @@ export function queueStatusPage(rows: QueueRow[], user: User, flash?: string): s
     </div>
     <div class="stat-card">
       <div class="stat-num" style="color:#16a34a">${totComplete}</div>
-      <div class="stat-lbl">สำเร็จ (24h)</div>
+      <div class="stat-lbl">สำเร็จ (${esc(rangeLabel)})</div>
     </div>
     <div class="stat-card">
       <div class="stat-num" style="color:#dc2626">${totFailed}</div>
-      <div class="stat-lbl">ล้มเหลว (24h)</div>
+      <div class="stat-lbl">ล้มเหลว (${esc(rangeLabel)})</div>
     </div>
     ${overallRate !== null ? `<div class="stat-card">
       <div class="stat-num" style="color:${overallRate >= 90 ? '#16a34a' : overallRate >= 70 ? '#d97706' : '#dc2626'}">${overallRate}%</div>
@@ -106,8 +127,8 @@ export function queueStatusPage(rows: QueueRow[], user: User, flash?: string): s
           <th>Form Type</th>
           <th style="text-align:center">Pending</th>
           <th style="text-align:center">Dispatching</th>
-          <th style="text-align:center">Complete (24h)</th>
-          <th style="text-align:center">Failed (24h)</th>
+          <th style="text-align:center">Complete (${esc(rangeLabel)})</th>
+          <th style="text-align:center">Failed (${esc(rangeLabel)})</th>
           <th style="text-align:center">Success Rate</th>
           <th style="text-align:center">Avg Duration</th>
           <th>Actions</th>

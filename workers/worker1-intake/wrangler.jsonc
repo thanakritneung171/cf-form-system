@@ -147,9 +147,9 @@
       // webhook consumer — ตัวเดียว ส่ง HTTP ไปยัง webhook URLs
       {
         "queue": "webhook-queue",
-        "max_batch_size": 10,
-        "max_batch_timeout": 10,
-        "max_concurrency": 5,
+        "max_batch_size": 50,
+        "max_batch_timeout": 2,
+        "max_concurrency": 15,
         "max_retries": 3,
         "dead_letter_queue": "webhook-dlq"
       }

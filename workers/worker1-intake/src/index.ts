@@ -320,8 +320,8 @@ async function handleAdminSubmissions(req: Request, env: Env): Promise<Response>
 
   if (filters.form_type) { conditions.push('form_type = ?'); params.push(filters.form_type); }
   if (filters.status) { conditions[0] = 'status = ?'; params.unshift(filters.status); }
-  if (filters.from) { conditions.push('submitted_at >= ?'); params.push(new Date(filters.from).getTime()); }
-  if (filters.to) { conditions.push('submitted_at <= ?'); params.push(new Date(filters.to + 'T23:59:59').getTime()); }
+  if (filters.from) { conditions.push('submitted_at >= ?'); params.push(new Date(filters.from + 'T00:00:00+07:00').getTime()); }
+  if (filters.to) { conditions.push('submitted_at <= ?'); params.push(new Date(filters.to + 'T23:59:59+07:00').getTime()); }
   if (filters.q) { conditions.push('(data LIKE ? OR data LIKE ?)'); params.push(`%${filters.q}%`, `%${filters.q}%`); }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -361,10 +361,20 @@ async function handleAdminDispatched(req: Request, env: Env): Promise<Response> 
   const offset = (page - 1) * perPage;
 
   const filters: Record<string, string> = {};
-  for (const key of ['form_type', 'status', 'from', 'to']) {
+  for (const key of ['form_type', 'status', 'from', 'to', 'sort', 'dir']) {
     const v = url.searchParams.get(key);
     if (v) filters[key] = v;
   }
+
+  const SORT_COLS: Record<string, string> = {
+    dispatched_at: 'dispatched_at',
+    completed_at: 'completed_at',
+    form_type: 'form_type',
+    status: 'status',
+    retry_count: 'retry_count',
+  };
+  const sortCol = SORT_COLS[filters.sort ?? ''] ?? 'dispatched_at';
+  const sortDir = filters.dir === 'asc' ? 'ASC' : 'DESC';
 
   const conditions: string[] = ["status IN ('complete','failed')"];
   const params: unknown[] = [];
@@ -373,13 +383,13 @@ async function handleAdminDispatched(req: Request, env: Env): Promise<Response> 
   if (filters.status && ['complete', 'failed'].includes(filters.status)) {
     conditions[0] = 'status = ?'; params.unshift(filters.status);
   }
-  if (filters.from) { conditions.push('dispatched_at >= ?'); params.push(new Date(filters.from).getTime()); }
-  if (filters.to) { conditions.push('dispatched_at <= ?'); params.push(new Date(filters.to + 'T23:59:59').getTime()); }
+  if (filters.from) { conditions.push('dispatched_at >= ?'); params.push(new Date(filters.from + 'T00:00:00+07:00').getTime()); }
+  if (filters.to) { conditions.push('dispatched_at <= ?'); params.push(new Date(filters.to + 'T23:59:59+07:00').getTime()); }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   const [rows, countRow, statsRow] = await Promise.all([
-    env.DB.prepare(`SELECT * FROM submissions ${where} ORDER BY dispatched_at DESC LIMIT ? OFFSET ?`)
+    env.DB.prepare(`SELECT * FROM submissions ${where} ORDER BY ${sortCol} ${sortDir} LIMIT ? OFFSET ?`)
       .bind(...params, perPage, offset).all<Submission>(),
     env.DB.prepare(`SELECT COUNT(*) as cnt FROM submissions ${where}`).bind(...params).first<{ cnt: number }>(),
     env.DB.prepare(`
@@ -387,8 +397,8 @@ async function handleAdminDispatched(req: Request, env: Env): Promise<Response> 
         SUM(CASE WHEN status='complete' THEN 1 ELSE 0 END) as complete,
         SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed,
         AVG(CASE WHEN completed_at IS NOT NULL THEN (completed_at - dispatched_at)/1000.0 ELSE NULL END) as avg_duration
-      FROM submissions WHERE status IN ('complete','failed')
-    `).first<{ complete: number; failed: number; avg_duration: number }>(),
+      FROM submissions ${where}
+    `).bind(...params).first<{ complete: number; failed: number; avg_duration: number }>(),
   ]);
 
   const complete = statsRow?.complete ?? 0;
@@ -462,21 +472,27 @@ async function handleAdminQueues(req: Request, env: Env): Promise<Response> {
   if (result instanceof Response) return result;
   const user = result as User;
 
-  const since24h = Date.now() - 24 * 60 * 60 * 1000;
+  const url = new URL(req.url);
+  const flash = url.searchParams.get('flash') ?? undefined;
+  const fromParam = url.searchParams.get('from') ?? '';
+  const toParam   = url.searchParams.get('to')   ?? '';
+
+  const fromTs = fromParam ? new Date(fromParam + '+07:00').getTime() : Date.now() - 24 * 60 * 60 * 1000;
+  const toTs   = toParam   ? new Date(toParam   + '+07:00').getTime() : Date.now();
 
   const rows = await env.DB.prepare(`
     SELECT
       form_type,
       SUM(CASE WHEN status='pending'     THEN 1 ELSE 0 END) AS pending,
       SUM(CASE WHEN status='dispatching' THEN 1 ELSE 0 END) AS dispatching,
-      SUM(CASE WHEN status='complete'    AND completed_at > ? THEN 1 ELSE 0 END) AS complete_24h,
-      SUM(CASE WHEN status='failed'      AND submitted_at > ? THEN 1 ELSE 0 END) AS failed_24h,
-      ROUND(AVG(CASE WHEN status='complete' AND completed_at > ?
+      SUM(CASE WHEN status='complete' AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) AS complete_24h,
+      SUM(CASE WHEN status='failed'   AND completed_at >= ? AND completed_at <= ? THEN 1 ELSE 0 END) AS failed_24h,
+      ROUND(AVG(CASE WHEN status='complete' AND completed_at >= ? AND completed_at <= ?
                 THEN (completed_at - dispatched_at)/1000.0 ELSE NULL END), 1) AS avg_duration_s
     FROM submissions
     GROUP BY form_type
     ORDER BY form_type
-  `).bind(since24h, since24h, since24h).all<{
+  `).bind(fromTs, toTs, fromTs, toTs, fromTs, toTs).all<{
     form_type: string;
     pending: number;
     dispatching: number;
@@ -485,9 +501,7 @@ async function handleAdminQueues(req: Request, env: Env): Promise<Response> {
     avg_duration_s: number | null;
   }>();
 
-  const url = new URL(req.url);
-  const flash = url.searchParams.get('flash') ?? undefined;
-  return html(queueStatusPage(rows.results, user, flash));
+  return html(queueStatusPage(rows.results, { from: fromParam, to: toParam }, user, flash));
 }
 
 // ===== Admin bulk retry =====
@@ -810,9 +824,9 @@ async function handleExportCsv(req: Request, env: Env, type: 'submissions' | 'di
   const form_type = url.searchParams.get('form_type');
   if (form_type) { conditions.push('form_type=?'); params.push(form_type); }
   const from = url.searchParams.get('from');
-  if (from) { conditions.push('submitted_at>=?'); params.push(new Date(from).getTime()); }
+  if (from) { conditions.push('submitted_at>=?'); params.push(new Date(from + 'T00:00:00+07:00').getTime()); }
   const to = url.searchParams.get('to');
-  if (to) { conditions.push('submitted_at<=?'); params.push(new Date(to + 'T23:59:59').getTime()); }
+  if (to) { conditions.push('submitted_at<=?'); params.push(new Date(to + 'T23:59:59+07:00').getTime()); }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
   const rows = await env.DB.prepare(`SELECT * FROM submissions ${where} ORDER BY submitted_at DESC`).bind(...params).all<Submission>();
@@ -850,7 +864,7 @@ async function handleExportCsv(req: Request, env: Env, type: 'submissions' | 'di
 // ===== Queue: intake-queue consumers (10 queues → same handler) =====
 
 async function handleIntakeQueue(batch: MessageBatch<IntakeMessage>, env: Env): Promise<void> {
-  for (const msg of batch.messages) {
+  await Promise.all(batch.messages.map(async (msg) => {
     const m = msg.body;
     try {
       await env.DB.prepare(
@@ -858,11 +872,16 @@ async function handleIntakeQueue(batch: MessageBatch<IntakeMessage>, env: Env): 
          VALUES (?, ?, ?, 'pending', ?, ?)`,
       ).bind(m.submission_id, m.form_type, JSON.stringify(m.data), m.submitted_at, m.idempotency_key).run();
 
-      for (const f of m.files) {
+      if (m.files.length > 0) {
+        // batch INSERT ในครั้งเดียวแทน N round-trips
+        const placeholders = m.files.map(() => '(?,?,?,?,?,?,?,?)').join(',');
+        const params = m.files.flatMap(f => [
+          f.id, m.submission_id, f.field_name, f.original_filename,
+          f.content_type, f.size_bytes, f.r2_key, m.submitted_at,
+        ]);
         await env.DB.prepare(
-          `INSERT OR IGNORE INTO submission_files (id, submission_id, field_name, original_filename, content_type, size_bytes, r2_key, uploaded_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(f.id, m.submission_id, f.field_name, f.original_filename, f.content_type, f.size_bytes, f.r2_key, m.submitted_at).run();
+          `INSERT OR IGNORE INTO submission_files (id, submission_id, field_name, original_filename, content_type, size_bytes, r2_key, uploaded_at) VALUES ${placeholders}`,
+        ).bind(...params).run();
       }
 
       msg.ack();
@@ -871,22 +890,22 @@ async function handleIntakeQueue(batch: MessageBatch<IntakeMessage>, env: Env): 
       console.error(`Intake error [${batch.queue}]:`, err);
       msg.retry();
     }
-  }
+  }));
 }
 
 // ===== Queue: webhook-queue consumer =====
 
 async function handleWebhookQueue(batch: MessageBatch<WebhookMessage>, env: Env): Promise<void> {
-  for (const msg of batch.messages) {
+  await Promise.all(batch.messages.map(async (msg) => {
     const m = msg.body;
     try {
       const webhook = await env.DB.prepare('SELECT * FROM webhooks WHERE id=? AND is_active=1')
         .bind(m.webhook_id).first<Webhook>();
-      if (!webhook) { msg.ack(); continue; }
+      if (!webhook) { msg.ack(); return; }
 
       const submission = await env.DB.prepare('SELECT * FROM submissions WHERE id=?')
         .bind(m.submission_id).first<Submission>();
-      if (!submission) { msg.ack(); continue; }
+      if (!submission) { msg.ack(); return; }
 
       const data = JSON.parse(submission.data);
       const payload = JSON.stringify({
@@ -924,7 +943,7 @@ async function handleWebhookQueue(batch: MessageBatch<WebhookMessage>, env: Env)
       console.error('Webhook queue error:', err);
       msg.retry({ delaySeconds: 30 });
     }
-  }
+  }));
 }
 
 // ===== Helper: fire webhook event =====
@@ -933,21 +952,24 @@ async function fireWebhookEvent(eventType: WebhookEvent, submissionId: string, f
   try {
     const webhooks = await env.DB.prepare('SELECT * FROM webhooks WHERE is_active=1').all<Webhook>();
 
-    for (const wh of webhooks.results) {
+    // filter ก่อน แล้วค่อย dispatch ทุก webhook พร้อมกัน
+    const applicable = webhooks.results.filter(wh => {
       const events: string[] = JSON.parse(wh.events);
-      if (!events.includes(eventType)) continue;
+      if (!events.includes(eventType)) return false;
       if (wh.form_types) {
         const allowed: string[] = JSON.parse(wh.form_types);
-        if (!allowed.includes(formType)) continue;
+        if (!allowed.includes(formType)) return false;
       }
+      return true;
+    });
 
+    await Promise.all(applicable.map(async (wh) => {
       const deliveryId = 'del_' + generateToken(8);
       await env.DB.prepare(
         "INSERT INTO webhook_deliveries (id, webhook_id, event_type, submission_id, status, attempt_count, created_at) VALUES (?,?,?,?,'pending',0,?)",
       ).bind(deliveryId, wh.id, eventType, submissionId, Date.now()).run();
-
       await env.WEBHOOK_QUEUE.send({ webhook_id: wh.id, event_type: eventType, submission_id: submissionId, delivery_id: deliveryId, attempt: 0 });
-    }
+    }));
   } catch (err) {
     console.error('fireWebhookEvent error:', err);
   }
