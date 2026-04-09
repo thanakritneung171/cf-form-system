@@ -51,8 +51,8 @@ User (Browser)          │   Worker 1          Worker 2          Worker 3      
 
 | Route | Method | ทำอะไร |
 |-------|--------|---------|
-| `/` | GET | หน้าแสดงฟอร์มทั้ง 10 แบบ |
-| `/form/:type` | GET | หน้าฟอร์มแต่ละประเภท |
+| `/` | GET | หน้าแสดงฟอร์มทั้ง 10 แบบ — แบ่งหมวดหมู่ 4 กลุ่ม พร้อม icons, ช่องค้นหา |
+| `/form/:type` | GET | หน้าฟอร์มแต่ละประเภท (Mistral warm design) |
 | `/submit/:type` | POST | รับ multipart form + ไฟล์ |
 | `/admin/*` | GET/POST | Admin Dashboard |
 | `/style.css` | GET | CSS สำหรับหน้าฟอร์ม |
@@ -250,24 +250,25 @@ POST /api/receive
                                                                  42
 ```
 
-### แต่ละ Queue มี Config ต่างกัน
+### แต่ละ Queue มี Config ต่างกัน (หลัง performance tuning)
 
 ```
 ┌────────────────────┬──────────────┬────────────────┬─────────────────────────────────┐
 │ Form Type          │ Intake Batch │ Dispatch Batch │ เหตุผล                          │
 ├────────────────────┼──────────────┼────────────────┼─────────────────────────────────┤
-│ newsletter         │ 500 / 20 cc  │ 200 / 10 cc    │ payload เบา volume สูงมาก       │
-│ event-registration │ 200 / 15 cc  │ 100 /  8 cc    │ burst ช่วงอีเวนต์               │
-│ contact            │ 100 / 10 cc  │  50 /  5 cc    │ ทั่วไป                          │
-│ feedback           │ 100 / 10 cc  │  50 /  5 cc    │ ทั่วไป                          │
-│ product-inquiry    │ 100 / 10 cc  │  50 /  5 cc    │ ทั่วไป                          │
-│ complaint          │  30 /  5 cc  │  10 /  3 cc    │ มีรูปภาพ                        │
-│ warranty-claim     │  30 /  5 cc  │  15 /  3 cc    │ มีไฟล์ + SLA สูง                │
-│ job-application    │  20 /  5 cc  │  10 /  3 cc    │ PDF ใหญ่                        │
-│ partnership        │  10 /  3 cc  │   5 /  2 cc    │ PDF ใหญ่มาก                     │
-│ incident-report    │  10 /  3 cc  │   5 /  2 cc    │ รูปหลายไฟล์ใหญ่                 │
+│ newsletter         │ 500 / 20 cc  │ 100 / 20 cc    │ payload เบา volume สูงมาก       │
+│ event-registration │ 200 / 15 cc  │ 100 / 15 cc    │ burst ช่วงอีเวนต์               │
+│ contact            │ 100 / 10 cc  │ 100 / 10 cc    │ ทั่วไป                          │
+│ feedback           │ 100 / 10 cc  │ 100 / 10 cc    │ ทั่วไป                          │
+│ product-inquiry    │ 100 / 10 cc  │ 100 / 10 cc    │ ทั่วไป                          │
+│ complaint          │  30 /  5 cc  │  20 /  5 cc    │ มีรูปภาพ                        │
+│ warranty-claim     │  30 /  5 cc  │  20 /  5 cc    │ มีไฟล์ + SLA สูง                │
+│ job-application    │  20 /  5 cc  │  10 /  5 cc    │ PDF ใหญ่                        │
+│ partnership        │  10 /  3 cc  │   5 /  3 cc    │ PDF ใหญ่มาก                     │
+│ incident-report    │  10 /  3 cc  │   5 /  3 cc    │ รูปหลายไฟล์ใหญ่                 │
 └────────────────────┴──────────────┴────────────────┴─────────────────────────────────┘
 cc = max_concurrency
+Dispatch batch_timeout ลดเหลือ 2-10s (ดู docs/performance-improvements.md)
 ```
 
 ### Dead Letter Queue (DLQ)
@@ -372,6 +373,16 @@ GET /admin/files/:id → ต้องผ่าน auth ทุกครั้ง
 
 URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
+### Design System
+
+ใช้ Mistral AI-inspired warm color palette:
+- Background: Warm Ivory (`#fffaeb`), Cream (`#fff0c2`)
+- Brand Orange: `#fa520f`, Amber: `#ffa110`, Flame: `#fb6424`
+- Text: Mistral Black (`#1f1f1f`), Muted: `#6b4f2a`
+- Golden warm shadow system แทน cool-gray shadows
+- Sharp corners (near-zero border-radius) ตามแนว Mistral design
+- ดูรายละเอียดเต็มใน `DESIGN.md`
+
 ### Roles
 
 ```
@@ -384,10 +395,10 @@ viewer   → ดูอย่างเดียว
 
 | หน้า | URL | เนื้อหา |
 |------|-----|---------|
-| Submissions | `/admin/submissions` | pending/dispatching/failed + filter + bulk retry |
-| Dispatched | `/admin/dispatched` | complete/failed + success rate + avg duration |
+| Submissions | `/admin/submissions` | pending/dispatching/failed + filter + bulk retry · stat cards คลิกได้เพื่อ filter · auto-refresh ทุก 10 วินาที |
+| Dispatched | `/admin/dispatched` | complete/failed + success rate + avg duration · stat cards คลิกได้ · refresh bar |
 | Submission Detail | `/admin/submissions/:id` | ข้อมูลครบ + download ไฟล์ |
-| Queue Status | `/admin/queues` | stats 24h แต่ละ form type |
+| Queue Status | `/admin/queues` | stats 24h แต่ละ form type · refresh bar · custom date range filter |
 | Users | `/admin/users` | CRUD users (admin only) |
 | Webhooks | `/admin/webhooks` | CRUD + test + delivery log (admin only) |
 | Profile | `/admin/profile` | เปลี่ยน password |
@@ -494,16 +505,16 @@ cf-form-system/
 │   │   │   ├── index.ts      ← main router + queue + scheduled handlers
 │   │   │   ├── auth.ts       ← session, CSRF, password, rate limit
 │   │   │   ├── validators.ts ← form/file validation
-│   │   │   └── html/         ← HTML pages (SSR) แยกต่อหน้า
+│   │   │   └── html/         ← HTML pages (SSR) แยกต่อหน้า — Mistral warm design
 │   │   │       ├── index.ts       ← re-export ทั้งหมด
-│   │   │       ├── layout.ts      ← base layout + CSS
-│   │   │       ├── login.ts       ← หน้า login
-│   │   │       ├── forms.ts       ← 10 form pages
-│   │   │       ├── submissions.ts ← submissions list + detail
-│   │   │       ├── dispatched.ts  ← dispatched records
-│   │   │       ├── users.ts       ← user management
+│   │   │       ├── layout.ts      ← base layout + CSS (Mistral palette) + refreshBarHtml()
+│   │   │       ├── login.ts       ← หน้า login (large typography + gradient identity bar)
+│   │   │       ├── forms.ts       ← 10 form pages (categorized + icons + search)
+│   │   │       ├── submissions.ts ← submissions list + detail (clickable stat cards)
+│   │   │       ├── dispatched.ts  ← dispatched records (clickable stat cards + refresh bar)
+│   │   │       ├── users.ts       ← user management (warm badge styling)
 │   │   │       ├── webhooks.ts    ← webhook management
-│   │   │       ├── queues.ts      ← queue stats
+│   │   │       ├── queues.ts      ← queue stats (refresh bar + accent colors)
 │   │   │       └── loadtest.ts    ← load test page
 │   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron
 │   │   └── tsconfig.json

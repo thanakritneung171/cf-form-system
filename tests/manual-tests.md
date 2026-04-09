@@ -251,10 +251,12 @@ grep -o 'name="_csrf" value="[^"]*"' /tmp/user-form.html
 
 ## Test 17: viewer ไม่เห็นปุ่ม retry
 
-1. สร้าง user role=viewer จาก admin
+1. สร้าง user role=viewer จาก admin (badge สี cream `#fff0c2`)
 2. Login ด้วย viewer
 3. เข้าหน้า `/admin/submissions`
 4. ตรวจว่าไม่มีปุ่ม "Retry" และ checkbox
+5. ตรวจว่า stat cards แสดงถูกต้อง (4 ใบ: รอดำเนินการ/กำลังส่ง/วันนี้ทั้งหมด/ล้มเหลว)
+6. ตรวจว่า stat cards คลิกได้ (link ไปหน้า filter ตาม status)
 
 ---
 
@@ -491,8 +493,41 @@ curl -b /tmp/cookies.txt https://worker1-intake.cloudflare-training3.workers.dev
 - แต่ละแถวมีตัวเลข Pending, Dispatching, Complete(24h), Failed(24h)
 - มี Success Rate และ Avg Duration
 - คลิก "Pending" link → ไปหน้า Submissions filter ตาม form_type นั้นได้
+- Stat cards 4 ใบด้านบน พร้อม accent bar สี warm palette
+- Refresh bar (auto-refresh ทุก 30 วินาที เมื่อไม่ได้ตั้ง custom range)
+- แถวที่ failed > 0 highlight ด้วย warm yellow background (#fff8e6)
 
 **ตรวจ config table** (กด expand ด้านล่าง):
 - newsletter: Intake Batch=500, Concurrency=20 (ใหญ่ที่สุด)
 - incident-report: Intake Batch=10, Concurrency=3 (เล็กที่สุด)
 - contact: Intake Batch=100, Concurrency=10 (กลางๆ)
+
+---
+
+## Test 28: ตรวจ Form Index Page (หน้า /)
+
+```bash
+curl https://worker1-intake.cloudflare-training3.workers.dev/ | grep -c "cat-section"
+```
+
+**ผลที่คาดหวัง:**
+- เห็น 4 categories (ติดต่อ & สนับสนุน, สมัครงาน & พาร์ทเนอร์, สินค้า & บริการ, กิจกรรม & ข่าวสาร)
+- แต่ละฟอร์มมี SVG icon + description
+- ฟอร์มที่มี file upload แสดง badge "แนบไฟล์ได้"
+- มีช่อง search ที่กรองฟอร์มแบบ real-time
+- สีตาม Mistral warm palette (ivory background, amber/orange accents)
+
+---
+
+## Test 29: ตรวจ Login Page UI
+
+```bash
+curl https://worker1-intake.cloudflare-training3.workers.dev/admin/login | grep -o "login-title\|login-blocks\|login-avatar"
+```
+
+**ผลที่คาดหวัง:**
+- Gradient identity bar (5 warm color blocks: yellow → amber → orange)
+- Avatar circle สี orange (#fa520f)
+- Title "SIGN IN" ขนาด 56px uppercase
+- Background gradient warm cream
+- Input fields พร้อม warm styling

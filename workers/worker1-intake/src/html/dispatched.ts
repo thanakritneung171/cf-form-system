@@ -1,7 +1,7 @@
 import type { Submission, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId, paginationHtml } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, paginationHtml, refreshBarHtml } from './layout';
 
 function sortLink(label: string, col: string, filters: Record<string, string>): string {
   const active = (filters.sort ?? 'dispatched_at') === col;
@@ -33,11 +33,11 @@ export function dispatchedPage(
       <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">${esc(formatDate(s.dispatched_at))}</td>
       <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">${esc(formatDate(s.completed_at))}</td>
       <td><code title="${esc(s.id)}">${esc(shortId(s.id))}</code></td>
-      <td><span style="font-size:0.78rem;background:#f0ece6;padding:2px 7px;border-radius:4px">${esc(s.form_type)}</span></td>
+      <td><span style="font-size:12px;background:#fff0c2;color:#7a4010;padding:2px 8px;border:1px solid #ffd06a;font-weight:400">${esc(s.form_type)}</span></td>
       <td>${esc(data.fullName ?? '—')}</td>
       <td>${statusBadge(s.status)}</td>
       <td style="text-align:center;color:var(--text-muted)">${s.retry_count}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dc2626;font-size:0.78rem">${esc(s.last_error ?? '')}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fa520f;font-size:12px">${esc(s.last_error ?? '')}</td>
       <td style="color:var(--text-muted);font-size:0.82rem">${duration}</td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:0.35rem">
@@ -52,21 +52,32 @@ export function dispatchedPage(
   }).join('\n');
 
   const content = `
+  <div class="page-header">
+    <div>
+      <div class="page-title">Dispatched</div>
+      <div class="page-subtitle">ประวัติการส่งข้อมูล · ${total.toLocaleString()} รายการ</div>
+    </div>
+  </div>
+
   <div class="stat-grid">
-    <div class="stat-card">
-      <div class="stat-num" style="color:#16a34a">${stats.complete}</div>
+    <a href="/admin/dispatched?status=complete" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#c8a86b"></div>
+      <div class="stat-num" style="color:#3d2800">${stats.complete}</div>
       <div class="stat-lbl">สำเร็จ</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num" style="color:#dc2626">${stats.failed}</div>
+    </a>
+    <a href="/admin/dispatched?status=failed" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#fa520f"></div>
+      <div class="stat-num" style="color:#fa520f">${stats.failed}</div>
       <div class="stat-lbl">ล้มเหลว</div>
-    </div>
+    </a>
     <div class="stat-card">
-      <div class="stat-num" style="color:#2563eb">${stats.successRate}%</div>
+      <div class="stat-accent" style="background:#ffa110"></div>
+      <div class="stat-num" style="color:#7a4a00">${stats.successRate}%</div>
       <div class="stat-lbl">Success Rate</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num">${stats.avgDuration}s</div>
+      <div class="stat-accent" style="background:#ff8a00"></div>
+      <div class="stat-num" style="color:#3d2800">${stats.avgDuration}s</div>
       <div class="stat-lbl">Avg Dispatch Time</div>
     </div>
   </div>
@@ -86,12 +97,13 @@ export function dispatchedPage(
       <input type="date" name="to" value="${esc(filters.to ?? '')}" style="width:auto">
       <button type="submit" class="btn btn-primary btn-sm">ค้นหา</button>
       <a href="/admin/dispatched" class="btn btn-outline btn-sm">รีเซ็ต</a>
-      ${canRetry ? `<a href="/admin/export/dispatched.csv?${new URLSearchParams(filters)}" class="btn btn-outline btn-sm">⬇️ Export CSV</a>` : ''}
+      ${canRetry ? `<a href="/admin/export/dispatched.csv?${new URLSearchParams(filters)}" class="btn btn-outline btn-sm" onclick="return confirm('ยืนยันการ Export CSV?\\nข้อมูลที่กรองอยู่จะถูกดาวน์โหลด')">⬇️ Export CSV</a>` : ''}
     </form>
   </div>
 
   <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">คลิกแถวเพื่อดู error details</p>
 
+  ${refreshBarHtml()}
   <div class="table-wrap">
     <table>
       <thead><tr>
@@ -110,10 +122,10 @@ export function dispatchedPage(
 
   ${paginationHtml(page, totalPages, total, p => '?' + new URLSearchParams({ ...filters, page: String(p) }))}
 
-  <dialog id="errorDialog" style="border:1px solid var(--border);border-radius:var(--radius);padding:0;max-width:600px;width:90%">
-    <div style="background:#1c1917;padding:1rem 1.25rem;border-radius:var(--radius) var(--radius) 0 0;display:flex;justify-content:space-between;align-items:center">
+  <dialog id="errorDialog" style="border:1px solid var(--border);border-radius:16px;padding:0;max-width:600px;width:90%">
+    <div style="background:#1c1917;padding:1rem 1.25rem;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:center">
       <span style="font-weight:600;color:#fbbf24">รายละเอียด Error</span>
-      <button onclick="document.getElementById('errorDialog').close()" style="background:transparent;border:none;color:#78716c;cursor:pointer;font-size:1.1rem">✕</button>
+      <button onclick="document.getElementById('errorDialog').close()" style="background:transparent;border:none;color:#a07840;cursor:pointer;font-size:1.1rem">✕</button>
     </div>
     <div style="padding:1.25rem">
       <pre id="errorText" style="margin:0;white-space:pre-wrap;word-break:break-word"></pre>

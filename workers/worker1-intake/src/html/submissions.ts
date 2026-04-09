@@ -1,7 +1,7 @@
 import type { Submission, SubmissionFile, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS, paginationHtml } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS, paginationHtml, refreshBarHtml } from './layout';
 
 export function submissionsPage(
   submissions: Submission[],
@@ -21,7 +21,7 @@ export function submissionsPage(
     return `<tr>
       <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${esc(formatDate(s.submitted_at))}</td>
       <td><code title="${esc(s.id)}">${esc(shortId(s.id))}</code></td>
-      <td><span style="font-size:0.78rem;background:#f0ece6;padding:2px 7px;border-radius:4px">${esc(s.form_type)}</span></td>
+      <td><span style="font-size:12px;background:#fff0c2;color:#7a4010;padding:2px 8px;border:1px solid #ffd06a;font-weight:400">${esc(s.form_type)}</span></td>
       <td>${esc(data.fullName ?? '—')}</td>
       <td style="color:var(--text-muted)">${esc(data.email ?? '—')}</td>
       <td>${statusBadge(s.status)}</td>
@@ -39,26 +39,35 @@ export function submissionsPage(
   }).join('\n');
 
   const content = `
-  <div class="stat-grid">
-    <div class="stat-card">
-      <div class="stat-num" style="color:#d97706">${stats.pending}</div>
-      <div class="stat-lbl">รอดำเนินการ</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num" style="color:#2563eb">${stats.dispatching}</div>
-      <div class="stat-lbl">กำลังส่ง</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num" style="color:#16a34a">${stats.today}</div>
-      <div class="stat-lbl">วันนี้ทั้งหมด</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num" style="color:#dc2626">${stats.failed}</div>
-      <div class="stat-lbl">ล้มเหลว</div>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Submissions</div>
+      <div class="page-subtitle">ข้อมูลทั้งหมด ${total.toLocaleString()} รายการ · อัปเดตอัตโนมัติทุก 10 วินาที</div>
     </div>
   </div>
 
-  <meta http-equiv="refresh" content="10">
+  <div class="stat-grid">
+    <a href="/admin/submissions?status=pending" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#ffa110"></div>
+      <div class="stat-num" style="color:#7a4a00">${stats.pending}</div>
+      <div class="stat-lbl">รอดำเนินการ</div>
+    </a>
+    <a href="/admin/submissions?status=dispatching" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#ff8105"></div>
+      <div class="stat-num" style="color:#6b3800">${stats.dispatching}</div>
+      <div class="stat-lbl">กำลังส่ง</div>
+    </a>
+    <a href="/admin/submissions" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#c8a86b"></div>
+      <div class="stat-num" style="color:#3d2800">${stats.today}</div>
+      <div class="stat-lbl">วันนี้ทั้งหมด</div>
+    </a>
+    <a href="/admin/submissions?status=failed" class="stat-card" style="text-decoration:none">
+      <div class="stat-accent" style="background:#fa520f"></div>
+      <div class="stat-num" style="color:#fa520f">${stats.failed}</div>
+      <div class="stat-lbl">ล้มเหลว</div>
+    </a>
+  </div>
 
   <div class="filter-bar">
     <form method="GET" action="/admin/submissions" style="display:contents">
@@ -83,6 +92,7 @@ export function submissionsPage(
     <span id="selCount" style="font-size:0.8rem;color:var(--text-muted)"></span>
   </div>` : ''}
 
+  ${refreshBarHtml()}
   <div class="table-wrap">
     <table>
       <thead><tr>
@@ -177,7 +187,7 @@ export function submissionDetailPage(
           <tr><td>Dispatched At</td><td>${esc(formatDate(submission.dispatched_at))}</td></tr>
           <tr><td>Completed At</td><td>${esc(formatDate(submission.completed_at))}</td></tr>
           <tr><td>Retry Count</td><td>${submission.retry_count}</td></tr>
-          ${submission.last_error ? `<tr><td>Last Error</td><td style="color:#dc2626"><pre style="margin:0;font-size:0.75rem">${esc(submission.last_error)}</pre></td></tr>` : ''}
+          ${submission.last_error ? `<tr><td>Last Error</td><td style="color:#fa520f"><pre style="margin:0;font-size:0.75rem">${esc(submission.last_error)}</pre></td></tr>` : ''}
         </table>
       </div>
     </div>

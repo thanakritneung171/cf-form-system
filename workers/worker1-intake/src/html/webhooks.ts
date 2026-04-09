@@ -22,8 +22,8 @@ export function webhooksPage(
       <td style="font-size:0.78rem;color:var(--text-muted)">${JSON.parse(w.events).join(', ')}</td>
       <td>
         ${w.is_active
-          ? '<span style="color:#16a34a;font-size:0.82rem;font-weight:500">● เปิด</span>'
-          : '<span style="color:#78716c;font-size:0.82rem;font-weight:500">○ ปิด</span>'}
+          ? '<span style="color:#7a4a00;font-size:13px">● เปิด</span>'
+          : '<span style="color:#c8a86b;font-size:13px">○ ปิด</span>'}
       </td>
       <td style="text-align:center;color:var(--text-muted)">${w.delivery_count ?? 0}</td>
       <td>
@@ -144,7 +144,7 @@ export function webhookDetailPage(
       <div>
         <div class="page-title">${esc(webhook.name)}</div>
         <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
-          ${webhook.is_active ? '<span style="color:#16a34a">● Active</span>' : '<span style="color:#78716c">○ Inactive</span>'}
+          ${webhook.is_active ? '<span style="color:#7a4a00">● Active</span>' : '<span style="color:#c8a86b">○ Inactive</span>'}
         </div>
       </div>
     </div>
