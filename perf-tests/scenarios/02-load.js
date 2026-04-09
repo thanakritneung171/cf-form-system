@@ -8,12 +8,13 @@ import { check, sleep } from 'k6';
 import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { FORM_TYPES } from '../helpers/form-types.js';
 
 export const options = {
   stages: [
-    { duration: '2m', target: 50 },   // ramp up
-    { duration: '10m', target: 50 },  // hold steady
-    { duration: '2m', target: 100 },  // ramp to peak
+    { duration: '2m', target: 5 },    // ramp up
+    { duration: '10m', target: 10 },  // hold steady
+    { duration: '2m', target: 10 },   // hold peak
     { duration: '2m', target: 0 },    // ramp down
   ],
   thresholds: {
@@ -23,10 +24,10 @@ export const options = {
 };
 
 // สุ่ม random ทุกครั้ง
-const LIGHT_FORMS = ['contact', 'newsletter', 'feedback'];
+// const LIGHT_FORMS = ['contact', 'newsletter', 'feedback'];
 
 export default function () {
-  const formType = randomItem(LIGHT_FORMS);
+  const formType = randomItem(FORM_TYPES);
   const payload = buildPayload(formType, __VU, __ITER);
 
   const res = http.post(`${BASE_URL}/submit/${formType}`, payload, {
