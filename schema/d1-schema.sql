@@ -91,12 +91,16 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
 CREATE INDEX IF NOT EXISTS idx_submissions_form_type ON submissions(form_type);
 CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at);
+-- composite index: เร่ง cron recovery query (status='dispatching' AND dispatched_at < ?)
+CREATE INDEX IF NOT EXISTS idx_submissions_status_dispatched ON submissions(status, dispatched_at);
 CREATE INDEX IF NOT EXISTS idx_files_submission ON submission_files(submission_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status);
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id);
+-- เร่ง SELECT * FROM webhooks WHERE is_active=1 (ทำทุก submission)
+CREATE INDEX IF NOT EXISTS idx_webhooks_is_active ON webhooks(is_active);
 
 -- ===== Default admin user =====
 -- username: admin  password: admin1234 (เปลี่ยนทันทีหลัง deploy!)

@@ -3,6 +3,14 @@ import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
 import { adminLayout, statusBadge, formatDate, shortId } from './layout';
 
+function sortLink(label: string, col: string, filters: Record<string, string>): string {
+  const active = (filters.sort ?? 'dispatched_at') === col;
+  const nextDir = active && filters.dir !== 'asc' ? 'asc' : 'desc';
+  const arrow = active ? (filters.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const p = new URLSearchParams({ ...filters, sort: col, dir: nextDir, page: '1' });
+  return `<a href="?${p}" style="color:inherit;text-decoration:none;white-space:nowrap">${label}${arrow}</a>`;
+}
+
 export function dispatchedPage(
   submissions: Submission[],
   total: number,
@@ -87,8 +95,14 @@ export function dispatchedPage(
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Dispatched</th><th>Completed</th><th>ID</th><th>ประเภท</th><th>ชื่อ</th>
-        <th>สถานะ</th><th style="text-align:center">Retry</th><th>Error</th><th>Duration</th><th>Actions</th>
+        <th>${sortLink('Dispatched', 'dispatched_at', filters)}</th>
+        <th>${sortLink('Completed', 'completed_at', filters)}</th>
+        <th>ID</th>
+        <th>${sortLink('ประเภท', 'form_type', filters)}</th>
+        <th>ชื่อ</th>
+        <th>${sortLink('สถานะ', 'status', filters)}</th>
+        <th style="text-align:center">${sortLink('Retry', 'retry_count', filters)}</th>
+        <th>Error</th><th>Duration</th><th>Actions</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
