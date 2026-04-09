@@ -100,7 +100,7 @@ function html(body: string, status = 200): Response {
 }
 
 function redirect(url: string): Response {
-  return Response.redirect(url, 302);
+  return new Response(null, { status: 302, headers: { Location: url } });
 }
 
 function getClientIp(req: Request): string {
@@ -108,9 +108,11 @@ function getClientIp(req: Request): string {
 }
 
 function flashRedirect(url: string, msg: string): Response {
-  const u = new URL(url, 'http://localhost');
-  u.searchParams.set('flash', msg);
-  return redirect(u.toString());
+  const sep = url.includes('?') ? '&' : '?';
+  return new Response(null, {
+    status: 302,
+    headers: { Location: url + sep + 'flash=' + encodeURIComponent(msg) },
+  });
 }
 
 // ===== Public handlers =====
@@ -572,15 +574,17 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
   if (result instanceof Response) return result;
   const user = result as User;
 
+  // สร้าง CSRF token ก่อนเสมอ — ใช้ทั้ง GET และทุก error response ใน POST
+  const freshCsrf = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
+
   if (req.method === 'GET') {
-    const csrf = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
-    return html(userFormPage(user, undefined, undefined, csrf));
+    return html(userFormPage(user, undefined, undefined, freshCsrf));
   }
 
   const body = await req.formData();
-  const csrf = String(body.get('_csrf') ?? '');
-  if (!await verifyCsrfToken(csrf, getSessionId(req) ?? '', env.SESSION_SECRET)) {
-    return html(userFormPage(user, undefined, 'CSRF token ไม่ถูกต้อง'), 403);
+  const csrfFromForm = String(body.get('_csrf') ?? '');
+  if (!await verifyCsrfToken(csrfFromForm, getSessionId(req) ?? '', env.SESSION_SECRET)) {
+    return html(userFormPage(user, undefined, 'CSRF token ไม่ถูกต้อง กรุณา reload แล้วลองใหม่', freshCsrf), 403);
   }
 
   const username = String(body.get('username') ?? '').trim();
@@ -588,8 +592,8 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
   const password = String(body.get('password') ?? '');
   const role = String(body.get('role') ?? 'viewer');
 
-  if (!username || !email || !password) return html(userFormPage(user, undefined, 'กรุณากรอกข้อมูลให้ครบ'));
-  if (password.length < 8) return html(userFormPage(user, undefined, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'));
+  if (!username || !email || !password) return html(userFormPage(user, undefined, 'กรุณากรอกข้อมูลให้ครบ', freshCsrf));
+  if (password.length < 8) return html(userFormPage(user, undefined, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', freshCsrf));
 
   const salt = generateToken(16);
   const hash = await hashPassword(password, salt);
@@ -601,7 +605,7 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
     ).bind(newId, username, email, hash, salt, role, Date.now(), user.id).run();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return html(userFormPage(user, undefined, msg.includes('UNIQUE') ? 'Username หรือ Email ซ้ำ' : 'เกิดข้อผิดพลาด'));
+    return html(userFormPage(user, undefined, msg.includes('UNIQUE') ? 'Username หรือ Email ซ้ำ' : 'เกิดข้อผิดพลาด', freshCsrf));
   }
 
   return flashRedirect('/admin/users', `✓ สร้าง user ${username} แล้ว`);
@@ -615,15 +619,16 @@ async function handleAdminUserEdit(req: Request, env: Env, userId: string): Prom
   const editUser = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<User>();
   if (!editUser) return new Response('Not found', { status: 404 });
 
+  const freshCsrf = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
+
   if (req.method === 'GET') {
-    const csrf = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
-    return html(userFormPage(user, editUser, undefined, csrf));
+    return html(userFormPage(user, editUser, undefined, freshCsrf));
   }
 
   const body = await req.formData();
-  const csrf = String(body.get('_csrf') ?? '');
-  if (!await verifyCsrfToken(csrf, getSessionId(req) ?? '', env.SESSION_SECRET)) {
-    return html(userFormPage(user, editUser, 'CSRF token ไม่ถูกต้อง'), 403);
+  const csrfFromForm = String(body.get('_csrf') ?? '');
+  if (!await verifyCsrfToken(csrfFromForm, getSessionId(req) ?? '', env.SESSION_SECRET)) {
+    return html(userFormPage(user, editUser, 'CSRF token ไม่ถูกต้อง กรุณา reload แล้วลองใหม่', freshCsrf), 403);
   }
 
   const email = String(body.get('email') ?? '').trim();
@@ -635,7 +640,7 @@ async function handleAdminUserEdit(req: Request, env: Env, userId: string): Prom
   let salt = editUser.password_salt;
 
   if (newPassword) {
-    if (newPassword.length < 8) return html(userFormPage(user, editUser, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'));
+    if (newPassword.length < 8) return html(userFormPage(user, editUser, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', freshCsrf));
     salt = generateToken(16);
     hash = await hashPassword(newPassword, salt);
   }
@@ -1239,6 +1244,7 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/export/dispatched.csv') return handleExportCsv(req, env, 'dispatched');
   if (path === '/admin/clear-data') return handleAdminClearData(req, env);
   if (path === '/admin/users' && method === 'GET') return handleAdminUsers(req, env);
+  if (path === '/admin/users' && method === 'POST') return handleAdminUserNew(req, env);
   if (path === '/admin/users/new') return handleAdminUserNew(req, env);
 
   // submission detail + file
