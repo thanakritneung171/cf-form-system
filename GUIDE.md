@@ -72,9 +72,17 @@ User (Browser)          │   Worker 1          Worker 2          Worker 3      
 
 **Scheduled (ทุก 1 นาที):**
 ```
-UPDATE submissions SET status='dispatching'
-WHERE status='pending' LIMIT 1000
-→ ส่ง IDs เข้า dispatch-{type} queue (แยกตาม form_type)
+1. Recovery: ตรวจ submissions ที่ค้าง 'dispatching' นานกว่า 10 นาที
+   - retry_count >= 3 → mark 'failed'
+   - retry_count <  3 → reset กลับ 'pending' (นับ retry_count++)
+
+2. Scan pending:
+   UPDATE submissions SET status='dispatching'
+   WHERE status='pending' LIMIT 1000
+
+3. Group by form_type → chunk 100 IDs/batch → sendBatch ต่อ chunk
+   (Cloudflare Queue limit = 100 msg/batch, D1 variable limit = ~100)
+   ถ้า sendBatch fail → revert เฉพาะ chunk นั้นกลับ 'pending'
 ```
 
 **Queue handler (`dispatch-*`):**
@@ -155,16 +163,24 @@ POST /api/receive
 ```
 [ทุก 1 นาที - Scheduled Event]
     │
+    ├─ [Recovery] ตรวจ 'dispatching' ที่ค้างนานกว่า 10 นาที
+    │   ├─ retry_count >= 3 → UPDATE status='failed'
+    │   └─ retry_count <  3 → UPDATE status='pending', retry_count++
+    │
     ├─ UPDATE submissions SET status='dispatching'
     │  WHERE status='pending' LIMIT 1000
     │  RETURNING id, form_type
     │
     ├─ group by form_type
-    │   { contact: [id1, id2], newsletter: [id3, id4, ...] }
+    │   { contact: [id1..id161], newsletter: [id3, ...] }
     │
-    ├─ contact → env.DISPATCH_CONTACT.sendBatch([{body:{id1}}, {body:{id2}}])
-    ├─ newsletter → env.DISPATCH_NEWSLETTER.sendBatch([...])
-    └─ ...
+    ├─ chunk ทีละ 100 แล้ว sendBatch ต่อ chunk:
+    │   contact  chunk1 → DISPATCH_CONTACT.sendBatch([100 messages])
+    │   contact  chunk2 → DISPATCH_CONTACT.sendBatch([ 61 messages])
+    │   newsletter ...  → DISPATCH_NEWSLETTER.sendBatch([...])
+    │
+    └─ ถ้า sendBatch fail → revert เฉพาะ chunk นั้น → status='pending'
+        (ไม่กระทบ chunk ที่ส่งสำเร็จแล้ว)
 ```
 
 ### 4. Worker 2 รับ Message จาก Dispatch Queue
@@ -420,17 +436,30 @@ submissions/2026-04-08/abc-123/evidence-1.jpg
 [ผู้ใช้ submit]
       │
       ▼
-   pending  ←─── bulk retry (admin)
+   pending  ◄─── bulk retry (admin)
+      │         ◄─── network error (reset อัตโนมัติ)
+      │         ◄─── sendBatch fail (revert อัตโนมัติ)
+      │         ◄─── Cron recovery (retry_count < 3, หลัง 10 นาที)
       │
-      │ Worker 2 cron scan
+      │ Worker 2 cron scan (chunk 100/batch)
       ▼
  dispatching
       │
-      ├── Worker 3 ตอบ 200 ──► complete  ✓
+      ├── Worker 3 ตอบ 200 ──────────────► complete ✓
+      │                                    fire: submission.completed
       │
-      ├── Worker 3 ตอบ 5xx ──► retry ──► (ลองใหม่) ──► complete หรือ failed
+      ├── Worker 3 ตอบ 5xx ──► retry ──► (ลองใหม่ backoff 30/60/300s)
+      │   retry_count++                        └──► complete หรือ failed
+      │   status ยังคง dispatching
       │
-      └── Worker 3 ตอบ 4xx ──► failed   ✗
+      ├── Worker 3 ตอบ 4xx ──────────────► failed ✗
+      │                                    fire: submission.failed
+      │
+      ├── Network error ─────────────────► pending (reset, retry queue)
+      │
+      └── ค้าง dispatching > 10 นาที (Cron recovery)
+           ├── retry_count < 3 ──► pending (reset)
+           └── retry_count ≥ 3 ──► failed ✗
 ```
 
 ---
@@ -465,13 +494,24 @@ cf-form-system/
 │   │   │   ├── index.ts      ← main router + queue + scheduled handlers
 │   │   │   ├── auth.ts       ← session, CSRF, password, rate limit
 │   │   │   ├── validators.ts ← form/file validation
-│   │   │   └── html.ts       ← HTML pages (SSR)
+│   │   │   └── html/         ← HTML pages (SSR) แยกต่อหน้า
+│   │   │       ├── index.ts       ← re-export ทั้งหมด
+│   │   │       ├── layout.ts      ← base layout + CSS
+│   │   │       ├── login.ts       ← หน้า login
+│   │   │       ├── forms.ts       ← 10 form pages
+│   │   │       ├── submissions.ts ← submissions list + detail
+│   │   │       ├── dispatched.ts  ← dispatched records
+│   │   │       ├── users.ts       ← user management
+│   │   │       ├── webhooks.ts    ← webhook management
+│   │   │       ├── queues.ts      ← queue stats
+│   │   │       └── loadtest.ts    ← load test page
 │   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron
 │   │   └── tsconfig.json
 │   │
 │   ├── worker2-dispatcher/
 │   │   ├── src/
-│   │   │   └── index.ts      ← cron scanner + dispatch queue handler
+│   │   │   ├── index.ts      ← cron scanner + dispatch queue handler
+│   │   │   └── helpers.ts    ← log(), chunkArray()
 │   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron
 │   │   └── tsconfig.json
 │   │
