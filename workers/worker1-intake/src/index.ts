@@ -1275,12 +1275,16 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (whDetail && method === 'GET') return handleAdminWebhookDetail(req, env, whDetail[1]);
 
   // ── 404 fallback ──────────────────────────────────────────────────────
-  // path ไม่ตรงกับ route ใด → ถ้า login แล้วไป /admin/submissions, ยังไม่ login → /admin/login
-  const fallbackUser = await getCurrentUser(req, env).catch(() => null);
-  if (fallbackUser) {
-    return new Response(null, { status: 302, headers: { Location: '/admin/submissions' } });
+  // path เป็น /admin/* แต่ไม่ตรง route → redirect ตาม auth
+  // path อื่นๆ ที่ไม่ใช่ admin → กลับหน้า /
+  if (path.startsWith('/admin')) {
+    const fallbackUser = await getCurrentUser(req, env).catch(() => null);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: fallbackUser ? '/admin/submissions' : '/admin/login' },
+    });
   }
-  return new Response(null, { status: 302, headers: { Location: '/admin/login' } });
+  return new Response(null, { status: 302, headers: { Location: '/' } });
 }
 
 // ===== Exports =====
