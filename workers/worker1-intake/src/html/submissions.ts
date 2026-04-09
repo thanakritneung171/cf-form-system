@@ -187,7 +187,12 @@ export function submissionDetailPage(
           <tr><td>Dispatched At</td><td>${esc(formatDate(submission.dispatched_at))}</td></tr>
           <tr><td>Completed At</td><td>${esc(formatDate(submission.completed_at))}</td></tr>
           <tr><td>Retry Count</td><td>${submission.retry_count}</td></tr>
-          ${submission.last_error ? `<tr><td>Last Error</td><td style="color:#fa520f"><pre style="margin:0;font-size:0.75rem">${esc(submission.last_error)}</pre></td></tr>` : ''}
+          ${submission.last_error ? `<tr><td>Last Error</td><td>
+            <div class="err-wrap">
+              <pre class="err-preview">${esc(submission.last_error)}</pre>
+              <div class="err-popup"><pre>${esc(submission.last_error)}</pre></div>
+            </div>
+          </td></tr>` : ''}
         </table>
       </div>
     </div>

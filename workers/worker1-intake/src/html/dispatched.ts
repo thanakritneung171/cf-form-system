@@ -37,7 +37,13 @@ export function dispatchedPage(
       <td>${esc(data.fullName ?? '—')}</td>
       <td>${statusBadge(s.status)}</td>
       <td style="text-align:center;color:var(--text-muted)">${s.retry_count}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fa520f;font-size:12px">${esc(s.last_error ?? '')}</td>
+      <td style="max-width:180px">${s.last_error
+        ? `<div class="err-wrap">
+            <span class="err-preview-inline">${esc(s.last_error)}</span>
+            <div class="err-popup"><pre>${esc(s.last_error)}</pre></div>
+          </div>`
+        : '—'
+      }</td>
       <td style="color:var(--text-muted);font-size:0.82rem">${duration}</td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:0.35rem">

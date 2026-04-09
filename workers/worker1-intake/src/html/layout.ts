@@ -508,6 +508,44 @@ export const ADMIN_CSS = `
   .kv-table tr:last-child td { border-bottom: none; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 
+  /* ===== ERROR HOVER POPUP ===== */
+  .err-wrap { position: relative; display: inline-block; max-width: 100%; }
+  /* detail page — แสดงหลายบรรทัด */
+  .err-preview {
+    margin: 0; font-size: 0.75rem; color: #fa520f;
+    max-height: 4.5em; overflow: hidden;
+    white-space: pre-wrap; word-break: break-all;
+    cursor: default;
+  }
+  /* table cell — แสดงบรรทัดเดียว ellipsis */
+  .err-preview-inline {
+    display: block;
+    font-size: 12px; color: #fa520f;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 180px; cursor: default;
+  }
+  .err-popup {
+    display: none;
+    position: fixed;
+    z-index: 99999;
+    background: #fff8e8;
+    border: 1px solid #fa520f;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    max-width: min(680px, 90vw);
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(127,99,21,0.22);
+    pointer-events: none;
+  }
+  .err-popup pre {
+    margin: 0; font-size: 0.78rem; color: #7a2000;
+    white-space: pre-wrap; word-break: break-all;
+    font-family: ui-monospace, 'Cascadia Code', monospace;
+    line-height: 1.6;
+  }
+  .err-wrap:hover .err-popup { display: block; }
+
   @media (max-width: 768px) {
     .two-col { grid-template-columns: 1fr; }
     .nav-links a { padding: 0 0.6rem; font-size: 13px; }
@@ -989,6 +1027,22 @@ export function adminLayout(
     });
   });
   applyInterval(saved);
+
+  /* ── Error hover popup — ติดตามเมาส์ ── */
+  document.querySelectorAll('.err-wrap').forEach(function (wrap) {
+    var popup = wrap.querySelector('.err-popup');
+    if (!popup) return;
+    wrap.addEventListener('mousemove', function (e) {
+      var x = e.clientX + 16;
+      var y = e.clientY + 16;
+      var pw = popup.offsetWidth || 400;
+      var ph = popup.offsetHeight || 200;
+      if (x + pw > window.innerWidth - 8) x = e.clientX - pw - 8;
+      if (y + ph > window.innerHeight - 8) y = e.clientY - ph - 8;
+      popup.style.left = x + 'px';
+      popup.style.top  = y + 'px';
+    });
+  });
 })();
 </script>
 </body>
