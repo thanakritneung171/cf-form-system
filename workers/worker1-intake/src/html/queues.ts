@@ -1,7 +1,7 @@
 import type { User } from 'shared/types';
 import { FORM_TYPES, FORMS_CONFIG } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout } from './layout';
+import { adminLayout, refreshBarHtml } from './layout';
 
 interface QueueRow {
   form_type: string;
@@ -37,30 +37,30 @@ export function queueStatusPage(
       : null;
     const hasProblem = r.failed_24h > 0 || r.pending > 500;
 
-    return `<tr style="${hasProblem ? 'background:rgba(220,38,38,.03)' : ''}">
-      <td><strong style="font-size:0.85rem">${esc(r.form_type)}</strong></td>
+    return `<tr style="${hasProblem ? 'background:#fff8e6' : ''}">
+      <td style="font-size:14px">${esc(r.form_type)}</td>
       <td style="text-align:center">
         ${r.pending > 0
-          ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:0.82rem;font-weight:600">${r.pending}</span>`
-          : `<span style="color:var(--text-light)">${r.pending}</span>`}
+          ? `<span style="background:#fff0c2;color:#7a4a00;padding:2px 10px;border:1px solid #ffa110;font-size:13px">${r.pending}</span>`
+          : `<span style="color:#c8a86b;font-size:13px">${r.pending}</span>`}
       </td>
       <td style="text-align:center">
         ${r.dispatching > 0
-          ? `<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:0.82rem;font-weight:600">${r.dispatching}</span>`
-          : `<span style="color:var(--text-light)">${r.dispatching}</span>`}
+          ? `<span style="background:#ffe295;color:#6b3800;padding:2px 10px;border:1px solid #ff8105;font-size:13px">${r.dispatching}</span>`
+          : `<span style="color:#c8a86b;font-size:13px">${r.dispatching}</span>`}
       </td>
-      <td style="text-align:center;color:#16a34a;font-weight:600">${r.complete_24h}</td>
-      <td style="text-align:center;${r.failed_24h > 0 ? 'color:#dc2626;font-weight:600' : 'color:var(--text-light)'}">${r.failed_24h}</td>
+      <td style="text-align:center;color:#5a4020;font-size:14px">${r.complete_24h}</td>
+      <td style="text-align:center;${r.failed_24h > 0 ? 'color:#fa520f' : 'color:#c8a86b'};font-size:14px">${r.failed_24h}</td>
       <td style="text-align:center">
         ${successRate !== null
-          ? `<span style="font-weight:600;color:${successRate >= 90 ? '#16a34a' : successRate >= 70 ? '#d97706' : '#dc2626'}">${successRate}%</span>`
-          : '<span style="color:var(--text-light)">—</span>'}
+          ? `<span style="color:${successRate >= 90 ? '#5a4020' : successRate >= 70 ? '#ffa110' : '#fa520f'};font-size:14px">${successRate}%</span>`
+          : '<span style="color:#c8a86b">—</span>'}
       </td>
-      <td style="text-align:center;color:var(--text-muted)">${r.avg_duration_s !== null ? r.avg_duration_s + 's' : '—'}</td>
+      <td style="text-align:center;color:var(--text-muted);font-size:13px">${r.avg_duration_s !== null ? r.avg_duration_s + 's' : '—'}</td>
       <td>
         <div style="display:flex;gap:0.35rem">
           <a href="/admin/submissions?form_type=${esc(r.form_type)}&status=pending" class="btn btn-outline btn-xs">Pending</a>
-          ${r.failed_24h > 0 ? `<a href="/admin/dispatched?form_type=${esc(r.form_type)}&status=failed" class="btn btn-xs" style="background:#dc2626;color:#fff;border-color:#dc2626">Failed</a>` : ''}
+          ${r.failed_24h > 0 ? `<a href="/admin/dispatched?form_type=${esc(r.form_type)}&status=failed" class="btn btn-xs" style="background:#fa520f;color:#fff;border-color:#fa520f">Failed</a>` : ''}
         </div>
       </td>
     </tr>`;
@@ -76,17 +76,17 @@ export function queueStatusPage(
   const isCustom = !!(filters.from || filters.to);
 
   const content = `
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-    <div class="page-title">Queue Status</div>
-    <span style="font-size:0.78rem;color:var(--text-muted)">${esc(rangeLabel)}${isCustom ? '' : ' · รีเฟรชทุก 30 วินาที'}</span>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Queue Status</div>
+      <div class="page-subtitle">${esc(rangeLabel)}${isCustom ? '' : ' · รีเฟรชทุก 30 วินาที'}</div>
+    </div>
   </div>
-  ${isCustom ? '' : '<meta http-equiv="refresh" content="30">'}
-
   <div class="filter-bar">
     <form method="GET" action="/admin/queues" style="display:contents">
-      <label style="font-size:0.82rem;color:var(--text-muted);white-space:nowrap">ตั้งแต่</label>
+      <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em">ตั้งแต่</label>
       <input type="datetime-local" name="from" value="${esc(filters.from)}" style="width:auto">
-      <label style="font-size:0.82rem;color:var(--text-muted);white-space:nowrap">ถึง</label>
+      <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em">ถึง</label>
       <input type="datetime-local" name="to" value="${esc(filters.to)}" style="width:auto">
       <button type="submit" class="btn btn-primary btn-sm">ดู</button>
       <a href="/admin/queues" class="btn btn-outline btn-sm">รีเซ็ต (24h)</a>
@@ -95,27 +95,33 @@ export function queueStatusPage(
 
   <div class="stat-grid">
     <div class="stat-card">
-      <div class="stat-num" style="color:#d97706">${totPending}</div>
+      <div class="stat-accent" style="background:#ffa110"></div>
+      <div class="stat-num" style="color:#7a4a00">${totPending}</div>
       <div class="stat-lbl">รอดำเนินการ</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" style="color:#2563eb">${totDispatching}</div>
+      <div class="stat-accent" style="background:#ff8105"></div>
+      <div class="stat-num" style="color:#6b3800">${totDispatching}</div>
       <div class="stat-lbl">กำลังส่ง</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" style="color:#16a34a">${totComplete}</div>
-      <div class="stat-lbl">สำเร็จ (${esc(rangeLabel)})</div>
+      <div class="stat-accent" style="background:#c8a86b"></div>
+      <div class="stat-num" style="color:#3d2800">${totComplete}</div>
+      <div class="stat-lbl">สำเร็จ</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" style="color:#dc2626">${totFailed}</div>
-      <div class="stat-lbl">ล้มเหลว (${esc(rangeLabel)})</div>
+      <div class="stat-accent" style="background:#fa520f"></div>
+      <div class="stat-num" style="color:#fa520f">${totFailed}</div>
+      <div class="stat-lbl">ล้มเหลว</div>
     </div>
     ${overallRate !== null ? `<div class="stat-card">
-      <div class="stat-num" style="color:${overallRate >= 90 ? '#16a34a' : overallRate >= 70 ? '#d97706' : '#dc2626'}">${overallRate}%</div>
+      <div class="stat-accent" style="background:${overallRate >= 90 ? '#ffa110' : '#fa520f'}"></div>
+      <div class="stat-num" style="color:${overallRate >= 90 ? '#3d2800' : '#fa520f'}">${overallRate}%</div>
       <div class="stat-lbl">Overall Success Rate</div>
     </div>` : ''}
   </div>
 
+  ${refreshBarHtml()}
   <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.875rem">
     แต่ละ form type มี queue แยกอิสระ — backlog ของฟอร์มหนึ่งจะไม่กระทบฟอร์มอื่น
   </p>

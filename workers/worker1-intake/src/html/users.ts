@@ -15,14 +15,14 @@ export function usersPage(
   const rows = users.map(u =>
     `<tr>
       <td>
-        <div style="font-weight:600">${esc(u.username)}</div>
+        <div style="font-weight:400">${esc(u.username)}</div>
         <div style="font-size:0.75rem;color:var(--text-muted)">${esc(u.email)}</div>
       </td>
       <td>${roleBadge(u.role)}</td>
       <td>
         ${u.is_active
-          ? '<span style="color:#16a34a;font-size:0.82rem;font-weight:500">● Active</span>'
-          : '<span style="color:#78716c;font-size:0.82rem;font-weight:500">○ Inactive</span>'}
+          ? '<span style="color:#7a4a00;font-size:13px">● Active</span>'
+          : '<span style="color:#c8a86b;font-size:13px">○ Inactive</span>'}
       </td>
       <td style="font-size:0.78rem;color:var(--text-muted)">${esc(formatDate(u.created_at))}</td>
       <td style="font-size:0.78rem;color:var(--text-muted)">${esc(formatDate(u.last_login_at))}</td>
@@ -123,7 +123,7 @@ export function profilePage(user: User, error?: string, success?: string, csrfTo
       <div class="card-header">ข้อมูลบัญชี</div>
       <div class="card-body">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
-          <div style="width:52px;height:52px;border-radius:50%;background:#1c1917;color:#fbbf24;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;flex-shrink:0">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:400;flex-shrink:0">
             ${user.username.charAt(0).toUpperCase()}
           </div>
           <div>

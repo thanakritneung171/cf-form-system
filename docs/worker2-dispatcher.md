@@ -196,15 +196,17 @@ dispatching
 
 ## Dispatch Queue Config
 
-| Form Type | Batch Size | Max Concurrency |
-|-----------|-----------|----------------|
-| newsletter | 200 | 10 cc |
-| event-registration | 100 | 8 cc |
-| contact | 50 | 5 cc |
-| feedback | 50 | 5 cc |
-| product-inquiry | 50 | 5 cc |
-| complaint | 10 | 3 cc |
-| warranty-claim | 15 | 3 cc |
-| job-application | 10 | 3 cc |
-| partnership | 5 | 2 cc |
-| incident-report | 5 | 2 cc |
+(ค่าหลัง performance tuning — ดู `docs/performance-improvements.md` Round 3)
+
+| Form Type | Batch Size | Max Concurrency | Batch Timeout |
+|-----------|-----------|----------------|---------------|
+| newsletter | 100 | 20 cc | 2s |
+| event-registration | 100 | 15 cc | 2s |
+| contact | 100 | 10 cc | 2s |
+| feedback | 100 | 10 cc | 2s |
+| product-inquiry | 100 | 10 cc | 2s |
+| complaint | 20 | 5 cc | 5s |
+| warranty-claim | 20 | 5 cc | 5s |
+| job-application | 10 | 5 cc | 5s |
+| partnership | 5 | 3 cc | 10s |
+| incident-report | 5 | 3 cc | 10s |

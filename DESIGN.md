@@ -217,3 +217,38 @@ Use size for hierarchy — 82px → 56px → 48px → 32px → 24px → 16px
 Never add border-radius — sharp corners only
 Shadows are always warm: "golden shadow with amber tones"
 Font weight is always 400 — describe emphasis through size and color
+
+10. Applied Implementation
+ระบบ CF Form System ใช้ Design System นี้ใน Admin Dashboard และ Public Forms:
+
+CSS Variables ที่ใช้จริง (layout.ts):
+--ivory: #fffaeb (page background)
+--cream: #fff0c2 (card surface, badges)
+--amber-light: #ffd06a (borders, secondary accents)
+--amber: #ffa110 (pending status, stat accent)
+--amber-deep: #ff8a00 (secondary emphasis)
+--orange: #fa520f (brand orange, failed status, admin badge)
+--flame: #fb6424 (hover states)
+--black: #1f1f1f (text, nav background)
+--shadow-warm: golden multi-layer shadow (rgba(127,99,21,...))
+
+Status Badge Colors:
+pending → cream background (#fff0c2) + amber border (#ffa110)
+dispatching → gold background (#ffe295) + orange border (#ff8105)
+complete → warm tan background (#f5ead5) + muted gold border (#c8a86b)
+failed → solid orange background (#fa520f) + white text
+
+Role Badge Colors:
+admin → solid orange (#fa520f) + white text
+operator → amber (#ffa110) + dark text
+viewer → cream (#fff0c2) + warm brown text
+
+Components ที่ implement แล้ว:
+- Login page: 56px uppercase title, gradient identity bar (5 warm color blocks), avatar circle
+- Form index: 4 categories with Feather SVG icons, search bar, warm card hover effects
+- Stat cards: clickable links with accent color bars (4px top border)
+- Refresh bar: JavaScript-based auto-refresh แทน <meta http-equiv="refresh">
+- Navigation: dark sidebar (#1c1917) with amber active indicator
+- Tables: warm hover state, amber-tinted row highlights
+- Pagination: warm-styled page navigation
+- Dialogs: warm header (#1c1917) with amber accents

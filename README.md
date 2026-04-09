@@ -197,6 +197,8 @@ pnpm db:migrate:local
 
 URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
+**Design:** Mistral AI-inspired warm palette — ivory/cream backgrounds, amber/orange accents, golden warm shadows, sharp corners (ดู `DESIGN.md`)
+
 ### Roles
 
 | Role | ดู | Retry | Export | User Mgmt | Webhook |
@@ -207,12 +209,13 @@ URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 ### หน้า Dashboard
 
-- `/admin/submissions` — Submissions ล่าสุด (pending/dispatching/failed)
-- `/admin/dispatched` — Dispatched records (complete/failed)
+- `/admin/submissions` — Submissions ล่าสุด · stat cards คลิกได้เพื่อ filter · auto-refresh ทุก 10 วินาที
+- `/admin/dispatched` — Dispatched records · stat cards คลิกได้ · refresh bar
 - `/admin/submissions/:id` — รายละเอียด + ดาวน์โหลดไฟล์
-- `/admin/users` — จัดการ users (admin only)
+- `/admin/queues` — Queue status แยกตาม form type · custom date range · refresh bar
+- `/admin/users` — จัดการ users (admin only) · warm role badges
 - `/admin/webhooks` — จัดการ webhooks (admin only)
-- `/admin/export/submissions.csv` — Export CSV
+- `/admin/export/submissions.csv` — Export CSV (พร้อม confirmation dialog)
 - `/admin/profile` — เปลี่ยน password
 
 ---
@@ -221,8 +224,8 @@ URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | หน้า index ฟอร์มทั้ง 10 |
-| GET | `/form/:type` | หน้าฟอร์ม |
+| GET | `/` | หน้า index ฟอร์มทั้ง 10 — แบ่ง 4 หมวดหมู่ พร้อม icons + ช่องค้นหา |
+| GET | `/form/:type` | หน้าฟอร์ม (Mistral warm design) |
 | POST | `/submit/:type` | รับ multipart/form-data |
 
 **Response จาก submit:**

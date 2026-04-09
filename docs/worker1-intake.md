@@ -8,8 +8,8 @@
 ## ภาพรวม
 
 Worker หลักของระบบ ทำหน้าที่ 3 อย่าง:
-1. **รับฟอร์ม** จากผู้ใช้ (Public Form API)
-2. **Admin Dashboard** สำหรับ admin จัดการ submissions, users, webhooks
+1. **รับฟอร์ม** จากผู้ใช้ (Public Form API) — Mistral AI-inspired warm design
+2. **Admin Dashboard** สำหรับ admin จัดการ submissions, users, webhooks — warm palette + clickable stat cards + refresh bar
 3. **Queue Consumer** สำหรับ intake queues และ webhook queue
 
 ---
@@ -17,10 +17,17 @@ Worker หลักของระบบ ทำหน้าที่ 3 อย่
 ## Public Routes (ไม่ต้อง Auth)
 
 ### GET `/`
-แสดงหน้า index พร้อมลิงก์ไปฟอร์มทั้ง 10 แบบ
+แสดงหน้า index พร้อมฟอร์มทั้ง 10 แบบ — แบ่ง 4 หมวดหมู่:
+- **ติดต่อ & สนับสนุน:** contact, complaint, feedback, incident-report
+- **สมัครงาน & พาร์ทเนอร์:** job-application, partnership
+- **สินค้า & บริการ:** product-inquiry, warranty-claim
+- **กิจกรรม & ข่าวสาร:** event-registration, newsletter
+
+แต่ละฟอร์มแสดง Feather-style SVG icon + description + badge "แนบไฟล์ได้" ถ้ามี file upload  
+มีช่อง search สำหรับกรองฟอร์มแบบ real-time
 
 ### GET `/form/:type`
-แสดงหน้าฟอร์ม HTML สำหรับแต่ละประเภท
+แสดงหน้าฟอร์ม HTML สำหรับแต่ละประเภท (Mistral warm design)
 
 | Form Type | คำอธิบาย | มีไฟล์แนบ |
 |-----------|----------|-----------|
@@ -76,7 +83,7 @@ validate text → validate files → upload R2 → ส่งเข้า intake-
 ## Admin Auth Routes
 
 ### GET `/admin/login`
-แสดงหน้า Login
+แสดงหน้า Login — ออกแบบด้วย Mistral-style large typography (56px uppercase title), gradient identity bar, warm cream background  
 Query params: `?error=...` `?next=...`
 
 ### POST `/admin/login`
@@ -105,6 +112,13 @@ Query params: `?error=...` `?next=...`
 ### GET `/admin/submissions`
 แสดง submissions ที่มี status: `pending`, `dispatching`, `failed`
 
+**UI Features:**
+- Page header พร้อม title + subtitle (จำนวนรายการทั้งหมด)
+- Stat cards 4 ใบ (รอดำเนินการ/กำลังส่ง/วันนี้ทั้งหมด/ล้มเหลว) — แต่ละใบคลิกเพื่อ filter ตาม status ได้
+- Stat cards มี accent bar สีตาม Mistral warm palette
+- Auto-refresh ด้วย JavaScript refresh bar (ทุก 10 วินาที) แทน `<meta http-equiv="refresh">`
+- Form type badge ใช้สี warm cream (`#fff0c2`) + amber border
+
 **Query params:**
 
 | Param | คำอธิบาย |
@@ -119,6 +133,11 @@ Query params: `?error=...` `?next=...`
 ### GET `/admin/dispatched`
 แสดง submissions ที่มี status: `complete`, `failed`
 
+**UI Features:**
+- Page header + subtitle (จำนวนรายการ)
+- Stat cards 4 ใบ (สำเร็จ/ล้มเหลว/Success Rate/Avg Dispatch Time) — คลิกได้
+- Refresh bar + Export CSV พร้อม confirmation dialog
+
 **Query params:** `form_type`, `status`, `from`, `to`, `page`
 
 ### GET `/admin/submissions/:id`
@@ -129,6 +148,13 @@ Query params: `?error=...` `?next=...`
 
 ### GET `/admin/queues`
 ดู queue statistics จาก D1 (24 ชั่วโมงล่าสุด) แยกตาม form type
+
+**UI Features:**
+- Page header + subtitle
+- Stat cards (รอดำเนินการ/กำลังส่ง/สำเร็จ/ล้มเหลว) พร้อม accent bar
+- Custom date range filter (datetime-local)
+- Refresh bar (auto-refresh ทุก 30 วินาที เมื่อไม่ได้ตั้ง custom range)
+- แถวที่มี problem (failed > 0 หรือ pending > 500) highlight ด้วย warm yellow background
 
 | Column | คำอธิบาย |
 |--------|----------|
