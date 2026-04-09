@@ -5,6 +5,7 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 
@@ -21,11 +22,11 @@ export const options = {
   },
 };
 
-// วน 3 ฟอร์มแบบ round-robin ตาม VU number
+// สุ่ม random ทุกครั้ง
 const LIGHT_FORMS = ['contact', 'newsletter', 'feedback'];
 
 export default function () {
-  const formType = LIGHT_FORMS[__VU % LIGHT_FORMS.length];
+  const formType = randomItem(LIGHT_FORMS);
   const payload = buildPayload(formType, __VU, __ITER);
 
   const res = http.post(`${BASE_URL}/submit/${formType}`, payload, {
