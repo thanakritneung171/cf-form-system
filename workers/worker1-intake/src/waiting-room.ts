@@ -102,6 +102,11 @@ export class WaitingRoom {
         return Response.json({ ok: true });
       }
 
+      case 'queue-position': {
+        const body = await req.json() as { fingerprint: string };
+        return Response.json(await this.queryQueuePosition(body.fingerprint));
+      }
+
       case 'status': {
         return Response.json(await this.status());
       }
@@ -120,8 +125,8 @@ export class WaitingRoom {
   //
   // ขอ slot:
   //   - ถ้า fingerprint นี้มี token อยู่แล้วและยังไม่หมดอายุ → return token เดิม (reused)
-  //   - ถ้าเต็ม → return { ok: false, position }
-  //   - ถ้าว่าง → สร้าง token ใหม่, +1 count, ตั้ง alarm
+  //   - ถ้าเต็ม (หลัง cleanup) หรือไม่ได้อยู่อันดับ 1 ของคิว → return { ok: false, position }
+  //   - ถ้ามี slot ว่าง AND (คิวว่าง หรือ เป็นอันดับ 1) → สร้าง token ใหม่
 
   private async acquire(
     fingerprint: string,
@@ -129,19 +134,54 @@ export class WaitingRoom {
     tokenTtlMs: number,
     maxSubmits: number,
   ): Promise<AcquireResult> {
-    // ตรวจ fingerprint → token ที่มีอยู่
+    const now = Date.now();
+
+    // ── 1. ตรวจ fingerprint → token ที่มีอยู่ ─────────────────────────────
     const existingTokenId = await this.state.storage.get<string>(`fp:${fingerprint}`);
     if (existingTokenId) {
       const token = await this.state.storage.get<TokenData>(`token:${existingTokenId}`);
-      if (token && token.expiresAt > Date.now()) {
+      if (token && token.expiresAt > now) {
         return { ok: true, tokenId: existingTokenId, reused: true, expiresAt: token.expiresAt };
       }
-      // fingerprint index เก่าหมดอายุ → ล้างทิ้ง (alarm จะลด count เอง)
+      // fingerprint index เก่าหมดอายุ → ล้างทิ้ง
       await this.state.storage.delete(`fp:${fingerprint}`);
     }
 
-    // เต็ม?
+    // ── 2. Inline cleanup expired tokens (ไม่รอ alarm เพื่อให้ activeCount ถูกต้อง) ──
     if (this.activeCount >= this.limit) {
+      const tokenEntries = await this.state.storage.list<unknown>({ prefix: 'token:' });
+      let freed = 0;
+      const expiredKeys: string[] = [];
+      for (const [key, value] of tokenEntries) {
+        const t = value as TokenData;
+        if (typeof t === 'object' && t !== null && t.expiresAt <= now) {
+          expiredKeys.push(key, `fp:${t.fingerprint}`);
+          freed++;
+        }
+      }
+      if (freed > 0) {
+        await this.state.storage.delete(expiredKeys);
+        this.activeCount = Math.max(0, this.activeCount - freed);
+        await this.state.storage.put('count', this.activeCount);
+      }
+    }
+
+    // ── 3. อ่านคิวที่ยังไม่หมดอายุ เรียงตาม joinedAt ─────────────────────
+    const queueEntries = await this.state.storage.list<unknown>({ prefix: 'queue:' });
+    const activeQueue: Array<{ fp: string; joinedAt: number }> = [];
+    for (const [key, value] of queueEntries) {
+      const q = value as { joinedAt: number; expiresAt: number };
+      if (typeof q === 'object' && q !== null && q.expiresAt > now) {
+        activeQueue.push({ fp: key.slice('queue:'.length), joinedAt: q.joinedAt });
+      }
+    }
+    activeQueue.sort((a, b) => a.joinedAt - b.joinedAt);
+
+    const firstInQueue = activeQueue[0]?.fp ?? null;
+    const hasQueue = activeQueue.length > 0;
+
+    // ── 4. เต็ม หรือ มีคิวอยู่และไม่ใช่อันดับ 1 → รอคิว ────────────────────
+    if (this.activeCount >= this.limit || (hasQueue && firstInQueue !== fingerprint)) {
       const queueTtlMs = Math.max(tokenTtlMs * 5, 5 * 60 * 1000);
       const position = await this.getQueuePosition(fingerprint, queueTtlMs);
       return {
@@ -153,29 +193,29 @@ export class WaitingRoom {
       };
     }
 
-    // ออก token ใหม่
+    // ── 5. มี slot ว่าง AND (คิวว่าง หรือ เป็นอันดับ 1) → ออก token ────────
     this.activeCount++;
     await this.state.storage.put('count', this.activeCount);
 
     const tokenId = crypto.randomUUID();
     const tokenData: TokenData = {
       fingerprint,
-      expiresAt: Date.now() + tokenTtlMs,
+      expiresAt: now + tokenTtlMs,
       formType,
-      createdAt: Date.now(),
+      createdAt: now,
       submitCount: 0,
       maxSubmits,
     };
 
     await this.state.storage.put(`token:${tokenId}`, tokenData);
     await this.state.storage.put(`fp:${fingerprint}`, tokenId);
-    // ได้ slot แล้ว → ลบออกจากคิว (ถ้ามี)
+    // ได้ slot แล้ว → ลบออกจากคิว
     await this.state.storage.delete(`queue:${fingerprint}`);
 
     // ตั้ง alarm ถ้ายังไม่มี
     const currentAlarm = await this.state.storage.getAlarm();
     if (currentAlarm === null) {
-      await this.state.storage.setAlarm(Date.now() + 60_000);
+      await this.state.storage.setAlarm(now + 10_000);
     }
 
     return { ok: true, tokenId, reused: false, expiresAt: tokenData.expiresAt };
@@ -270,6 +310,29 @@ export class WaitingRoom {
     return Math.max(1, position);
   }
 
+  // ── queryQueuePosition ────────────────────────────────────────────────────
+  // อ่านตำแหน่งคิวปัจจุบันโดยไม่ acquire slot (สำหรับ position-only poll)
+  // ไม่สร้าง entry ใหม่ — ถ้า fingerprint ไม่ได้อยู่ในคิวคืน inQueue: false
+
+  private async queryQueuePosition(fingerprint: string): Promise<{ position: number; inQueue: boolean; activeCount: number; limit: number }> {
+    const now = Date.now();
+    const entry = await this.state.storage.get<{ joinedAt: number; expiresAt: number }>(`queue:${fingerprint}`);
+
+    if (!entry || entry.expiresAt <= now) {
+      return { position: 0, inQueue: false, activeCount: this.activeCount, limit: this.limit };
+    }
+
+    const myJoinedAt = entry.joinedAt;
+    const allEntries = await this.state.storage.list<unknown>({ prefix: 'queue:' });
+    let position = 0;
+    for (const [, value] of allEntries) {
+      const e = value as { joinedAt: number; expiresAt: number };
+      if (e.expiresAt > now && e.joinedAt <= myJoinedAt) position++;
+    }
+
+    return { position: Math.max(1, position), inQueue: true, activeCount: this.activeCount, limit: this.limit };
+  }
+
   // ── status ─────────────────────────────────────────────────────────────────
 
   private async status(): Promise<{ activeCount: number; limit: number; available: number }> {
@@ -345,7 +408,7 @@ export class WaitingRoom {
       }
     }
     if (hasMoreTokens) {
-      await this.state.storage.setAlarm(Date.now() + 60_000);
+      await this.state.storage.setAlarm(Date.now() + 10_000);
     }
   }
 }

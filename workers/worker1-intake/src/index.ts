@@ -407,6 +407,23 @@ async function handleWaitingRoomAcquireAPI(req: Request, env: Env): Promise<Resp
   return json(result);
 }
 
+async function handleWaitingRoomPositionAPI(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const formType = url.searchParams.get('formType') ?? '';
+  const wrConfig = getWaitingRoomConfig(formType);
+
+  if (!wrConfig.enabled) return json({ inQueue: false, position: 0 });
+
+  const fingerprint = await computeFingerprint(req);
+  const do_ = getWaitingRoomDO(env, formType);
+  const res = await do_.fetch('https://waiting-room-do/queue-position', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fingerprint }),
+  });
+  return json(await res.json());
+}
+
 async function handleWaitingRoomStatusAPI(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const formType = url.searchParams.get('formType') ?? '';
@@ -1542,6 +1559,7 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
 
   // waiting room API
   if (path === '/api/waiting-room/acquire') return handleWaitingRoomAcquireAPI(req, env);
+  if (path === '/api/waiting-room/position') return handleWaitingRoomPositionAPI(req, env);
   if (path === '/api/waiting-room/status') return handleWaitingRoomStatusAPI(req, env);
   if (path === '/api/waiting-room/release' && method === 'POST') return handleWaitingRoomReleaseAPI(req, env);
   if (path === '/api/waiting-room/heartbeat' && method === 'POST') return handleWaitingRoomHeartbeatAPI(req, env);

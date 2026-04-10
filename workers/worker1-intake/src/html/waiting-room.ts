@@ -252,24 +252,24 @@ ${hasData ? `
 <script>
 (function() {
   'use strict';
-  var FORM_TYPE = ${JSON.stringify(data!.formType)};
-  var REDIRECT  = ${JSON.stringify(redirectTarget)};
-  var INTERVAL  = ${pollInterval};
-  var statusTxt = document.getElementById('status-txt');
-  var posEl     = document.getElementById('pos');
-  var occEl     = document.getElementById('occ');
-  var pbar      = document.getElementById('pbar');
+  var FORM_TYPE   = ${JSON.stringify(data!.formType)};
+  var REDIRECT    = ${JSON.stringify(redirectTarget)};
+  var ACQUIRE_INT = ${pollInterval};
+  var POS_INT     = 2000;
+  var statusTxt   = document.getElementById('status-txt');
+  var posEl       = document.getElementById('pos');
+  var occEl       = document.getElementById('occ');
+  var pbar        = document.getElementById('pbar');
+  var entering    = false;
 
-  function poll() {
-    fetch('/api/waiting-room/acquire?formType=' + encodeURIComponent(FORM_TYPE))
+  /* ── poll ตำแหน่งคิว (ทุก 2 วิ) ── */
+  function pollPosition() {
+    if (entering) return;
+    fetch('/api/waiting-room/position?formType=' + encodeURIComponent(FORM_TYPE))
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.ok) {
-          if (statusTxt) statusTxt.textContent = 'กำลังเข้าสู่แบบฟอร์ม…';
-          window.location.href = REDIRECT;
-          return;
-        }
-        if (posEl && d.position) posEl.textContent = d.position;
+        if (!d.inQueue) return; // ออกจากคิวแล้ว (หรือ not enabled) — รอ acquire
+        if (posEl) posEl.textContent = d.position;
         if (occEl && d.activeCount !== undefined && d.limit) {
           occEl.textContent = d.activeCount.toLocaleString() + ' / ' + d.limit.toLocaleString();
         }
@@ -277,13 +277,30 @@ ${hasData ? `
           var pct = Math.min(100, Math.round((d.activeCount / d.limit) * 100));
           pbar.style.width = pct + '%';
         }
+      })
+      .catch(function() {});
+  }
+
+  /* ── poll acquire slot (ทุก retryAfter วิ) ── */
+  function pollAcquire() {
+    if (entering) return;
+    fetch('/api/waiting-room/acquire?formType=' + encodeURIComponent(FORM_TYPE))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          entering = true;
+          if (statusTxt) statusTxt.textContent = 'กำลังเข้าสู่แบบฟอร์ม…';
+          window.location.href = REDIRECT;
+          return;
+        }
         if (statusTxt) statusTxt.textContent = 'กำลังตรวจสอบทุก ${data!.retryAfter} วินาที…';
       })
       .catch(function() {});
   }
 
-  setTimeout(poll, 1000);
-  setInterval(poll, INTERVAL);
+  setTimeout(pollAcquire, 1000);
+  setInterval(pollPosition, POS_INT);
+  setInterval(pollAcquire, ACQUIRE_INT);
 })();
 </script>
 ` : ''}
