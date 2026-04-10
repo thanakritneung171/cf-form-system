@@ -5,18 +5,19 @@
 ## สถาปัตยกรรม 
 
 ```
-User → Worker 1 (Intake) → intake-queue → Worker 1 (consumer) → D1
-                              ↓
-                        Worker 2 (Cron) → dispatch-queue → Worker 2 (consumer) → Worker 3
-                              ↓
-                        webhook-queue → Worker 1 (consumer) → External URL
+User → [Waiting Room DO] → Worker 1 (Intake) → intake-queue → Worker 1 (consumer) → D1
+                                                    ↓
+                                              Worker 2 (Cron) → dispatch-queue → Worker 2 (consumer) → Worker 3
+                                                    ↓
+                                              webhook-queue → Worker 1 (consumer) → External URL
 ```
 
 | Worker | หน้าที่ |
 |--------|---------|
-| **worker1-intake** | รับ form submit, upload R2, ส่ง queue, Admin dashboard |
+| **worker1-intake** | รับ form submit, upload R2, ส่ง queue, Admin dashboard, Waiting Room |
 | **worker2-dispatcher** | Cron scan pending, ส่งไป Worker 3, บันทึกผลลัพธ์ |
 | **worker3-external-api** | Mock API ปลายทาง (สุ่ม 90% OK, 5% 500, 5% 400) |
+| **WaitingRoom DO** | Durable Object — จัดการ token/slot ต่อ form type (1 instance/form) |
 
 ## ฟอร์มทั้ง 10 แบบ
 
@@ -70,19 +71,28 @@ Script จะสร้าง:
 หลัง run setup.sh จะได้ `database_id` ให้แก้ทุกไฟล์:
 
 ```bash
-# workers/worker1-intake/wrangler.toml
-# workers/worker2-dispatcher/wrangler.toml
+# workers/worker1-intake/wrangler.jsonc
+# workers/worker2-dispatcher/wrangler.jsonc
 
 # แทนที่ REPLACE_WITH_DATABASE_ID ด้วย ID จริง
 database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
-อัพเดต Worker 3 URL ใน `workers/worker2-dispatcher/wrangler.toml`:
+อัพเดต Worker 3 URL ใน `workers/worker2-dispatcher/wrangler.jsonc`:
 
 ```toml
 [vars]
 WORKER3_URL = "https://worker3-external-api.cloudflare-training3.workers.dev"
 ```
+
+### 3.1 ตั้งค่า Load Test Token (optional)
+
+```bash
+# ตั้ง secret สำหรับ bypass waiting room ตอน load test
+wrangler secret put LOAD_TEST_TOKEN --name worker1-intake
+```
+
+> ถ้าไม่ตั้ง `LOAD_TEST_TOKEN` ระบบจะไม่ bypass (ทุก request ผ่าน waiting room ปกติ)
 
 ### 4. Deploy
 
@@ -201,11 +211,11 @@ URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 
 ### Roles
 
-| Role | ดู | Retry | Export | User Mgmt | Webhook |
-|------|----|-------|--------|-----------|---------|
-| admin | ✓ | ✓ | ✓ | ✓ | ✓ |
-| operator | ✓ | ✓ | ✓ | ✗ | ✗ |
-| viewer | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Role | ดู | Retry | Export | User Mgmt | Webhook | Waiting Room |
+|------|----|-------|--------|-----------|---------|--------------|
+| admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (Reset) |
+| operator | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ (ดูอย่างเดียว) |
+| viewer | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ (ดูอย่างเดียว) |
 
 ### หน้า Dashboard
 
@@ -215,6 +225,7 @@ URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 - `/admin/queues` — Queue status แยกตาม form type · custom date range · refresh bar
 - `/admin/users` — จัดการ users (admin only) · warm role badges
 - `/admin/webhooks` — จัดการ webhooks (admin only)
+- `/admin/waiting-room` — สถานะ Waiting Room ทุก form type · auto-refresh ทุก 5 วินาที · ปุ่ม Reset (admin only)
 - `/admin/export/submissions.csv` — Export CSV (พร้อม confirmation dialog)
 - `/admin/profile` — เปลี่ยน password
 
@@ -225,8 +236,11 @@ URL: `https://worker1-intake.cloudflare-training3.workers.dev/admin`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | หน้า index ฟอร์มทั้ง 10 — แบ่ง 4 หมวดหมู่ พร้อม icons + ช่องค้นหา |
-| GET | `/form/:type` | หน้าฟอร์ม (Mistral warm design) |
-| POST | `/submit/:type` | รับ multipart/form-data |
+| GET | `/form/:type` | หน้าฟอร์ม (ผ่าน Waiting Room ถ้า enabled) |
+| POST | `/submit/:type` | รับ multipart/form-data (ตรวจ WR token ถ้า enabled) |
+| GET | `/waiting-room` | หน้ารอคิว (แสดงเมื่อ slot เต็ม) |
+| GET | `/api/waiting-room/acquire?formType=` | ขอ slot หรือดูสถานะคิว |
+| GET | `/api/waiting-room/status?formType=` | ดูสถานะ (activeCount / limit) |
 
 **Response จาก submit:**
 ```json
@@ -298,6 +312,24 @@ webhook-queue consumer (Worker 1)
 
 ---
 
+## Waiting Room
+
+ระบบจัดคิวผู้ใช้ก่อนเข้าฟอร์ม — ใช้ Durable Objects เพื่อนับ concurrent users แบบ strongly consistent
+
+| Form | Enabled | Limit | TTL | Max Submits |
+|------|---------|-------|-----|-------------|
+| event-registration | ✓ | 5,000 | 5 นาที | 3 |
+| newsletter | ✓ | 10,000 | 5 นาที | 5 |
+| job-application | ✓ | 3,000 | 10 นาที | 1 |
+| incident-report | ✓ | 2,000 | 10 นาที | 2 |
+| อื่น ๆ | ✗ | — | — | — |
+
+**แก้ config** ที่ `workers/worker1-intake/src/waiting-room-config.ts`
+
+**Load test bypass:** ส่ง header `X-Load-Test-Token: <token>` เพื่อข้าม waiting room (ต้องตั้ง secret `LOAD_TEST_TOKEN` ก่อน)
+
+---
+
 ## Security
 
 - **Password hashing:** PBKDF2-SHA256, 100,000 iterations
@@ -306,6 +338,7 @@ webhook-queue consumer (Worker 1)
 - **Rate limiting:** Login 5 ครั้ง/10 นาที/IP (ใช้ D1)
 - **File download:** ต้องผ่าน auth ทุกครั้ง (ไม่ expose R2 URL ตรง)
 - **Webhook secret:** แสดงครั้งเดียวตอนสร้าง
+- **Waiting Room token:** UUID สุ่ม เก็บใน cookie + DO storage (หมดอายุตาม TTL)
 
 ---
 
