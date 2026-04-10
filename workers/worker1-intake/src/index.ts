@@ -52,6 +52,7 @@ import {
   queueStatusPage,
   loadtestPage,
   clearDataPage,
+  waitingRoomPage,
 } from './html';
 import type { ClearDataStats } from './html';
 
@@ -114,6 +115,7 @@ function flashRedirect(url: string, msg: string): Response {
     headers: { Location: url + sep + 'flash=' + encodeURIComponent(msg) },
   });
 }
+
 
 // ===== Public handlers =====
 
@@ -1208,6 +1210,9 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/') return handleIndex(req, env);
   if (path.startsWith('/form/')) return handleFormPage(req, env);
   if (path.startsWith('/submit/') && method === 'POST') return handleSubmit(req, env);
+
+  // waiting room
+  if (path === '/waiting-room') return html(waitingRoomPage());
 
   // ── Admin login / logout (ไม่ต้องผ่าน auth guard)
   if (path === '/admin/login') return handleAdminLogin(req, env);

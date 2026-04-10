@@ -8,3 +8,4 @@ export { queueStatusPage } from './queues';
 export { loadtestPage } from './loadtest';
 export { clearDataPage } from './clear-data';
 export type { ClearDataStats } from './clear-data';
+export { waitingRoomPage } from './waiting-room';
