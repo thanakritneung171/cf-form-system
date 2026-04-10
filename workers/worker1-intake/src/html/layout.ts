@@ -21,14 +21,43 @@ export const STATUS_LABELS: Record<string, string> = {
 
 export function statusBadge(status: string): string {
   const styleMap: Record<string, string> = {
-    pending:     'background:#fff0c2;color:#92400e;border:1px solid #ffa110',
-    dispatching: 'background:#ffe295;color:#7a4a00;border:1px solid #ff8105',
-    complete:    'background:#f5ead5;color:#5a4020;border:1px solid #c8a86b',
-    failed:      'background:#fa520f;color:#fff;border:1px solid #fa520f',
+    pending:     'background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd',
+    dispatching: 'background:#fffbeb;color:#b45309;border:1px solid #fbbf24',
+    complete:    'background:#f0fdf4;color:#15803d;border:1px solid #86efac',
+    failed:      'background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5',
   };
-  const style = styleMap[status] ?? 'background:#fff0c2;color:#92400e;border:1px solid #ffa110';
+  const dotMap: Record<string, string> = {
+    pending:     '#3b82f6',
+    dispatching: '#f59e0b',
+    complete:    '#22c55e',
+    failed:      '#ef4444',
+  };
+  const style = styleMap[status] ?? 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+  const dot   = dotMap[status]  ?? '#94a3b8';
   const label = STATUS_LABELS[status] ?? status;
-  return `<span class="badge" style="${style}">${esc(label)}</span>`;
+  return `<span class="badge" style="${style};display:inline-flex;align-items:center;gap:5px">
+    <span style="width:6px;height:6px;border-radius:50%;background:${dot};flex-shrink:0;display:inline-block"></span>${esc(label)}</span>`;
+}
+
+/** ● เปิด / ○ ปิด pill — ใช้ใน webhooks, waiting-room */
+export function activeBadge(isActive: boolean | number): string {
+  return isActive
+    ? `<span class="badge" style="background:#f0fdf4;color:#15803d;border:1px solid #86efac;display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0;display:inline-block"></span>เปิด</span>`
+    : `<span class="badge" style="background:#f8fafc;color:#64748b;border:1px solid #cbd5e1;display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#94a3b8;flex-shrink:0;display:inline-block"></span>ปิด</span>`;
+}
+
+/** Tag สีอำพัน สำหรับ form type */
+export function formTypeBadge(type: string): string {
+  return `<span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:11px;letter-spacing:0.02em">${esc(type)}</span>`;
+}
+
+/** Count pill ใน Queue Status — pending (blue) / dispatching (amber) */
+export function queueCountBadge(count: number, type: 'pending' | 'dispatching'): string {
+  if (count === 0) return `<span style="color:#94a3b8;font-size:13px">0</span>`;
+  const s = type === 'pending'
+    ? 'background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd'
+    : 'background:#fffbeb;color:#b45309;border:1px solid #fbbf24';
+  return `<span class="badge" style="${s}">${count}</span>`;
 }
 
 export function roleBadge(role: string): string {
@@ -213,27 +242,7 @@ export const ADMIN_CSS = `
     margin-left: auto;
     flex-shrink: 0;
   }
-  .nav-search {
-    display: flex;
-    align-items: center;
-    background: var(--cream);
-    border: 1px solid var(--amber-light);
-    border-radius: 8px;
-    padding: 0 0.75rem;
-    gap: 0.4rem;
-    height: 34px;
-  }
-  .nav-search input {
-    background: transparent;
-    border: none;
-    outline: none;
-    font-size: 13px;
-    color: var(--text);
-    width: 160px;
-    font-weight: 400;
-  }
-  .nav-search input::placeholder { color: var(--text-light); }
-  .nav-user {
+.nav-user {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -415,24 +424,63 @@ export const ADMIN_CSS = `
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 400;
+    padding: 0.5rem 1.1rem;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: background .08s, border-color .08s, color .08s;
+    transition: background .12s, border-color .12s, color .12s, box-shadow .12s, transform .06s;
     text-decoration: none;
     font-family: Arial, ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+    white-space: nowrap;
+    user-select: none;
   }
-  .btn-primary { background: var(--black); color: #fff; border-color: var(--black); }
-  .btn-primary:hover { background: #333; border-color: #333; text-decoration: none; color: #fff; }
-  .btn-outline { background: var(--cream); color: var(--black); border-color: var(--amber-light); }
-  .btn-outline:hover { background: #ffe295; border-color: var(--amber); text-decoration: none; }
-  .btn-danger { background: transparent; color: var(--orange); border-color: var(--orange); }
-  .btn-danger:hover { background: #fff0e8; text-decoration: none; }
-  .btn-sm { padding: 0.32rem 0.7rem; font-size: 13px; }
-  .btn-xs { padding: 0.2rem 0.5rem; font-size: 12px; }
+  .btn:active { transform: scale(0.97); }
+  /* Primary — dark solid */
+  .btn-primary {
+    background: #1c1009;
+    color: #fff;
+    border-color: #1c1009;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18), 0 0 0 0 rgba(250,82,15,0);
+  }
+  .btn-primary:hover {
+    background: #fa520f;
+    border-color: #fa520f;
+    box-shadow: 0 2px 8px rgba(250,82,15,0.35);
+    text-decoration: none; color: #fff;
+  }
+  .btn-primary:active { background: #d44009; border-color: #d44009; }
+  /* Outline — cream ghost */
+  .btn-outline {
+    background: transparent;
+    color: var(--black);
+    border-color: var(--amber-light);
+    box-shadow: 0 1px 2px rgba(127,99,21,0.06);
+  }
+  .btn-outline:hover {
+    background: #fff0c2;
+    border-color: var(--amber);
+    box-shadow: 0 2px 6px rgba(127,99,21,0.14);
+    text-decoration: none;
+  }
+  /* Danger — red tint */
+  .btn-danger {
+    background: #fff1f2;
+    color: #be123c;
+    border-color: #fda4af;
+    box-shadow: 0 1px 2px rgba(190,18,60,0.06);
+  }
+  .btn-danger:hover {
+    background: #ffe4e6;
+    border-color: #fb7185;
+    box-shadow: 0 2px 6px rgba(190,18,60,0.16);
+    text-decoration: none;
+  }
+  .btn-sm { padding: 0.32rem 0.75rem; font-size: 12px; border-radius: 8px; }
+  .btn-xs { padding: 0.18rem 0.55rem; font-size: 11px; border-radius: 6px; letter-spacing: 0.02em; }
 
   /* ===== ALERTS ===== */
   .alert { padding: 0.75rem 1rem; font-size: 14px; margin-bottom: 1rem; border-radius: 10px; }
@@ -549,7 +597,6 @@ export const ADMIN_CSS = `
   @media (max-width: 768px) {
     .two-col { grid-template-columns: 1fr; }
     .nav-links a { padding: 0 0.6rem; font-size: 13px; }
-    .nav-search { display: none; }
     .content { padding: 1rem; }
   }
 `;
@@ -651,7 +698,7 @@ export function adminLayout(
     { href: '/admin/submissions', label: 'Submissions', page: 'submissions', icon: '📋' },
     { href: '/admin/dispatched', label: 'Dispatched', page: 'dispatched', icon: '🚀' },
     { href: '/admin/queues', label: 'Queue Status', page: 'queues', icon: '📊' },
-    { href: '/admin/waiting-room', label: 'Waiting Room', page: 'waiting-room', icon: '🚦' },
+    { href: '/admin/wr-dashboard', label: 'WR Dashboard', page: 'wr-dashboard', icon: '🚦' },
     ...(user.role === 'admin'
       ? [
           { href: '/admin/users', label: 'Users', page: 'users', icon: '👥' },
@@ -935,14 +982,7 @@ export function adminLayout(
 
       <!-- Right side -->
       <div class="nav-right">
-        <div class="nav-search">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <circle cx="6.5" cy="6.5" r="5" stroke="#a07840" stroke-width="1.5"/>
-            <path d="M10 10L14 14" stroke="#a07840" stroke-width="1.5" stroke-linecap="square"/>
-          </svg>
-          <input type="text" placeholder="ค้นหา…" onkeydown="if(event.key==='Enter'){window.location.href='/admin/submissions?q='+encodeURIComponent(this.value)}">
-        </div>
-        <a href="/admin/profile" class="nav-user" style="text-decoration:none">
+<a href="/admin/profile" class="nav-user" style="text-decoration:none">
           <div class="nav-avatar">${avatarChar}</div>
           <div>
             <div class="nav-username">${esc(user.username)}</div>
@@ -1012,7 +1052,10 @@ export function adminLayout(
   function applyInterval(sec) {
     clearInterval(_timer);
     localStorage.setItem(KEY, String(sec));
-    if (sec > 0) _timer = setInterval(function () { location.reload(); }, sec * 1000);
+    if (sec > 0) _timer = setInterval(function () {
+      if (document.querySelector('.uf-modal-overlay[style*="flex"]')) return;
+      location.reload();
+    }, sec * 1000);
   }
 
   var saved = parseInt(localStorage.getItem(KEY) || '0', 10);

@@ -1,7 +1,7 @@
 import type { User, Webhook, WebhookDelivery } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, paginationHtml } from './layout';
+import { adminLayout, statusBadge, formatDate, paginationHtml, activeBadge } from './layout';
 
 export function webhooksPage(
   webhooks: (Webhook & { delivery_count?: number; last_delivery?: string })[],
@@ -20,11 +20,7 @@ export function webhooksPage(
       </td>
       <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);font-size:0.82rem" title="${esc(w.url)}">${esc(w.url)}</td>
       <td style="font-size:0.78rem;color:var(--text-muted)">${JSON.parse(w.events).join(', ')}</td>
-      <td>
-        ${w.is_active
-          ? '<span style="color:#7a4a00;font-size:13px">● เปิด</span>'
-          : '<span style="color:#c8a86b;font-size:13px">○ ปิด</span>'}
-      </td>
+      <td>${activeBadge(w.is_active)}</td>
       <td style="text-align:center;color:var(--text-muted)">${w.delivery_count ?? 0}</td>
       <td>
         <div style="display:flex;gap:0.35rem">
@@ -143,9 +139,7 @@ export function webhookDetailPage(
       <a href="/admin/webhooks" class="btn btn-outline btn-sm">← กลับ</a>
       <div>
         <div class="page-title">${esc(webhook.name)}</div>
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">
-          ${webhook.is_active ? '<span style="color:#7a4a00">● Active</span>' : '<span style="color:#c8a86b">○ Inactive</span>'}
-        </div>
+        <div style="font-size:0.75rem;margin-top:2px">${activeBadge(webhook.is_active)}</div>
       </div>
     </div>
     <div style="display:flex;gap:0.5rem">

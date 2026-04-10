@@ -8,7 +8,10 @@ export function usersPage(
   page: number,
   perPage: number,
   currentUser: User,
+  csrfToken: string,
   flash?: string,
+  createError?: string,
+  openModal?: boolean,
 ): string {
   const totalPages = Math.ceil(total / perPage);
 
@@ -38,9 +41,153 @@ export function usersPage(
   ).join('');
 
   const content = `
+  <style>
+    .uf-modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(30,15,0,0.45);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .uf-modal-box {
+      position: relative;
+      background: var(--cream);
+      border: 1px solid var(--amber-light);
+      border-radius: 20px;
+      padding: 2rem 2rem 1.75rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow:
+        rgba(127,99,21,0.18) -6px 14px 36px,
+        rgba(127,99,21,0.13) -16px 32px 64px,
+        rgba(127,99,21,0.08) -32px 64px 100px;
+      animation: uf-modal-in .15s ease;
+    }
+    @keyframes uf-modal-in {
+      from { opacity:0; transform: scale(.96) translateY(8px); }
+      to   { opacity:1; transform: scale(1)  translateY(0);    }
+    }
+    .uf-modal-close {
+      position: absolute;
+      top: 0.9rem; right: 1rem;
+      background: none; border: none;
+      font-size: 20px; color: var(--text-muted);
+      cursor: pointer; line-height: 1;
+      padding: 0.2rem 0.4rem;
+      border-radius: 6px;
+      transition: color .1s, background .1s;
+    }
+    .uf-modal-close:hover { color: var(--black); background: rgba(0,0,0,0.06); }
+    .uf-avatar {
+      width: 44px; height: 44px;
+      background: var(--orange);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1rem;
+    }
+    .uf-card-title {
+      font-size: 18px; font-weight: 600;
+      color: var(--black); letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
+    }
+    .uf-card-sub {
+      font-size: 12px; color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+    .uf-group { margin-bottom: 1rem; }
+    .uf-group label {
+      display: block; font-size: 10px;
+      color: var(--text-muted); margin-bottom: 0.4rem;
+      text-transform: uppercase; letter-spacing: .1em;
+    }
+    .uf-group input, .uf-group select {
+      width: 100%; padding: 0.68rem 0.875rem;
+      border: 1px solid var(--border-input);
+      border-radius: 10px; background: var(--ivory);
+      color: var(--black); font-size: 14px;
+      font-family: Arial, ui-sans-serif, system-ui, sans-serif;
+      transition: border-color .08s, box-shadow .08s, background .08s;
+      box-sizing: border-box;
+    }
+    .uf-group input:hover, .uf-group select:hover { border-color: var(--amber-light); }
+    .uf-group input:focus, .uf-group select:focus {
+      outline: none; border-color: var(--orange);
+      box-shadow: 0 0 0 2px rgba(250,82,15,0.13); background: #fff;
+    }
+    .uf-group input::placeholder { color: var(--text-light); font-size: 13px; }
+    .uf-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .uf-divider {
+      height: 2px;
+      background: linear-gradient(to right, #ffd900, #ffe295, #ffa110, #ff8105, #fb6424, #fa520f);
+      margin: 1.5rem 0 1.25rem; border-radius: 2px;
+    }
+    .uf-submit {
+      width: 100%; padding: 0.875rem 1rem;
+      background: var(--black); color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 12px; font-family: Arial, ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer; letter-spacing: .12em; text-transform: uppercase;
+      transition: background .08s;
+    }
+    .uf-submit:hover { background: #2e1a06; }
+    .uf-submit:active { background: var(--orange); }
+    .uf-error {
+      background: #fff0e8; border: 1px solid var(--orange);
+      border-left: 3px solid var(--orange); border-radius: 10px;
+      color: #7a2000; padding: 0.65rem 0.875rem;
+      font-size: 13px; margin-bottom: 1.25rem;
+    }
+  </style>
+
+  <!-- Create User Modal -->
+  <div id="uf-create-overlay" class="uf-modal-overlay" onclick="if(event.target===this)closeCreateModal()">
+    <div class="uf-modal-box">
+      <button class="uf-modal-close" type="button" onclick="closeCreateModal()" aria-label="ปิด">×</button>
+      <div class="uf-avatar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="3.5" stroke="#fff" stroke-width="1.5"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#fff" stroke-width="1.5" stroke-linecap="square"/>
+        </svg>
+      </div>
+      <div class="uf-card-title">บัญชีใหม่</div>
+      <div class="uf-card-sub">กรอกข้อมูลเพื่อสร้างผู้ใช้งานใหม่</div>
+      ${createError ? `<div class="uf-error">${esc(createError)}</div>` : ''}
+      <form method="POST" action="/admin/users">
+        <input type="hidden" name="_csrf" value="${esc(csrfToken)}">
+        <div class="uf-row-2">
+          <div class="uf-group">
+            <label>Username</label>
+            <input type="text" name="username" required placeholder="johndoe">
+          </div>
+          <div class="uf-group">
+            <label>Role</label>
+            <select name="role" required>
+              <option value="viewer">viewer</option>
+              <option value="operator">operator</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="uf-group">
+          <label>Email</label>
+          <input type="email" name="email" required placeholder="example@domain.com">
+        </div>
+        <div class="uf-group">
+          <label>รหัสผ่าน</label>
+          <input type="password" name="password" required minlength="8" placeholder="อย่างน้อย 8 ตัวอักษร">
+        </div>
+        <div class="uf-divider"></div>
+        <button type="submit" class="uf-submit">สร้าง User</button>
+      </form>
+    </div>
+  </div>
+
   <div class="page-header">
     <div class="page-title">จัดการ Users</div>
-    <a href="/admin/users/new" class="btn btn-primary btn-sm">+ สร้าง User</a>
+    <button type="button" class="btn btn-primary btn-sm" onclick="openCreateModal()">+ สร้าง User</button>
   </div>
   <div class="table-wrap">
     <table>
@@ -50,7 +197,24 @@ export function usersPage(
       <tbody>${rows}</tbody>
     </table>
   </div>
-  ${paginationHtml(page, totalPages, total, p => `?page=${p}`)}`;
+  ${paginationHtml(page, totalPages, total, p => `?page=${p}`)}
+
+  <script>
+    function openCreateModal() {
+      var el = document.getElementById('uf-create-overlay');
+      el.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+    function closeCreateModal() {
+      var el = document.getElementById('uf-create-overlay');
+      el.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeCreateModal();
+    });
+    ${openModal ? 'openCreateModal();' : ''}
+  </script>`;
 
   return adminLayout('Users', content, currentUser, 'users', flash);
 }

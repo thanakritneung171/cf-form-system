@@ -1,7 +1,7 @@
 import type { Submission, SubmissionFile, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS, paginationHtml, refreshBarHtml } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, STATUS_LABELS, paginationHtml, refreshBarHtml, formTypeBadge } from './layout';
 
 export function submissionsPage(
   submissions: Submission[],
@@ -21,7 +21,7 @@ export function submissionsPage(
     return `<tr>
       <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${esc(formatDate(s.submitted_at))}</td>
       <td><code title="${esc(s.id)}">${esc(shortId(s.id))}</code></td>
-      <td><span style="font-size:12px;background:#fff0c2;color:#7a4010;padding:2px 8px;border:1px solid #ffd06a;font-weight:400">${esc(s.form_type)}</span></td>
+      <td>${formTypeBadge(s.form_type)}</td>
       <td>${esc(data.fullName ?? '—')}</td>
       <td style="color:var(--text-muted)">${esc(data.email ?? '—')}</td>
       <td>${statusBadge(s.status)}</td>
@@ -47,25 +47,25 @@ export function submissionsPage(
   </div>
 
   <div class="stat-grid">
-    <a href="/admin/submissions?status=pending" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#ffa110"></div>
-      <div class="stat-num" style="color:#7a4a00">${stats.pending}</div>
-      <div class="stat-lbl">รอดำเนินการ</div>
+    <a href="/admin/submissions?status=pending" class="stat-card" style="text-decoration:none;background:#eff6ff;border-color:#93c5fd">
+      <div class="stat-accent" style="background:#3b82f6"></div>
+      <div class="stat-num" style="color:#1d4ed8">${stats.pending}</div>
+      <div class="stat-lbl" style="color:#2563eb">รอดำเนินการ</div>
     </a>
-    <a href="/admin/submissions?status=dispatching" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#ff8105"></div>
-      <div class="stat-num" style="color:#6b3800">${stats.dispatching}</div>
-      <div class="stat-lbl">กำลังส่ง</div>
+    <a href="/admin/submissions?status=dispatching" class="stat-card" style="text-decoration:none;background:#fffbeb;border-color:#fbbf24">
+      <div class="stat-accent" style="background:#f59e0b"></div>
+      <div class="stat-num" style="color:#b45309">${stats.dispatching}</div>
+      <div class="stat-lbl" style="color:#92400e">กำลังส่ง</div>
     </a>
-    <a href="/admin/submissions" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#c8a86b"></div>
-      <div class="stat-num" style="color:#3d2800">${stats.today}</div>
-      <div class="stat-lbl">วันนี้ทั้งหมด</div>
+    <a href="/admin/submissions" class="stat-card" style="text-decoration:none;background:#f0fdf4;border-color:#86efac">
+      <div class="stat-accent" style="background:#22c55e"></div>
+      <div class="stat-num" style="color:#15803d">${stats.today}</div>
+      <div class="stat-lbl" style="color:#166534">วันนี้ทั้งหมด</div>
     </a>
-    <a href="/admin/submissions?status=failed" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#fa520f"></div>
-      <div class="stat-num" style="color:#fa520f">${stats.failed}</div>
-      <div class="stat-lbl">ล้มเหลว</div>
+    <a href="/admin/submissions?status=failed" class="stat-card" style="text-decoration:none;background:#fff1f2;border-color:#fda4af">
+      <div class="stat-accent" style="background:#ef4444"></div>
+      <div class="stat-num" style="color:#be123c">${stats.failed}</div>
+      <div class="stat-lbl" style="color:#9f1239">ล้มเหลว</div>
     </a>
   </div>
 

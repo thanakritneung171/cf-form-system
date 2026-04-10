@@ -8,7 +8,7 @@ export interface WaitingRoomConfig {
 
 export const WAITING_ROOM_CONFIGS: Record<string, WaitingRoomConfig> = {
   // ── ฟอร์มยอดนิยม / burst สูง ─────────────────────────────────────────────
-  'event-registration': { enabled: true,  limit: 5000,  tokenTtlMinutes: 5,  maxSubmitsPerToken: 3, shards: 1 },
+  'event-registration': { enabled: true,  limit: 2,  tokenTtlMinutes: 1,  maxSubmitsPerToken: 2, shards: 1 },
   'newsletter':         { enabled: true,  limit: 10000, tokenTtlMinutes: 5,  maxSubmitsPerToken: 5, shards: 1 },
 
   // ── ฟอร์มมีไฟล์แนบ → กรอกนาน → ลด limit ────────────────────────────────

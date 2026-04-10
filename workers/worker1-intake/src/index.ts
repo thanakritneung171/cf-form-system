@@ -53,7 +53,7 @@ import {
   loadtestPage,
   clearDataPage,
   waitingRoomPage,
-  adminWaitingRoomPage,
+  wrDashboardPage,
 } from './html';
 import type { ClearDataStats, WaitingRoomStatusData } from './html';
 import { getWaitingRoomConfig, WAITING_ROOM_CONFIGS } from './waiting-room-config';
@@ -526,7 +526,7 @@ async function handleAdminWaitingRoom(req: Request, env: Env): Promise<Response>
     }),
   );
 
-  return html(adminWaitingRoomPage(statuses, user, flash));
+  return html(wrDashboardPage(statuses, user, flash));
 }
 
 async function handleAdminWaitingRoomReset(req: Request, env: Env): Promise<Response> {
@@ -546,7 +546,7 @@ async function handleAdminWaitingRoomReset(req: Request, env: Env): Promise<Resp
     await do_.fetch('https://waiting-room-do/reset', { method: 'POST' });
   }
 
-  return flashRedirect('/admin/waiting-room', `✓ Reset waiting room สำหรับ ${formType} แล้ว`);
+  return flashRedirect('/admin/wr-dashboard', `✓ Reset waiting room สำหรับ ${formType} แล้ว`);
 }
 
 // ===== Admin auth handlers =====
@@ -874,12 +874,13 @@ async function handleAdminUsers(req: Request, env: Env): Promise<Response> {
   const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'));
   const offset = (page - 1) * perPage;
 
-  const [countRow, users] = await Promise.all([
+  const [countRow, users, csrfToken] = await Promise.all([
     env.DB.prepare('SELECT COUNT(*) as n FROM users').first<{ n: number }>(),
     env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(perPage, offset).all<User>(),
+    generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET),
   ]);
   const total = countRow?.n ?? 0;
-  return html(usersPage(users.results, total, page, perPage, user, flash));
+  return html(usersPage(users.results, total, page, perPage, user, csrfToken, flash));
 }
 
 async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
@@ -887,17 +888,28 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
   if (result instanceof Response) return result;
   const user = result as User;
 
-  // สร้าง CSRF token ก่อนเสมอ — ใช้ทั้ง GET และทุก error response ใน POST
   const freshCsrf = await generateCsrfToken(getSessionId(req) ?? '', env.SESSION_SECRET);
 
   if (req.method === 'GET') {
-    return html(userFormPage(user, undefined, undefined, freshCsrf));
+    return Response.redirect('/admin/users', 302);
   }
 
   const body = await req.formData();
   const csrfFromForm = String(body.get('_csrf') ?? '');
+
+  // helper: render users page with modal open
+  const renderWithError = async (errorMsg: string, status = 400) => {
+    const perPage = 50;
+    const [countRow, users] = await Promise.all([
+      env.DB.prepare('SELECT COUNT(*) as n FROM users').first<{ n: number }>(),
+      env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(perPage, 0).all<User>(),
+    ]);
+    const total = countRow?.n ?? 0;
+    return html(usersPage(users.results, total, 1, perPage, user, freshCsrf, undefined, errorMsg, true), status);
+  };
+
   if (!await verifyCsrfToken(csrfFromForm, getSessionId(req) ?? '', env.SESSION_SECRET)) {
-    return html(userFormPage(user, undefined, 'CSRF token ไม่ถูกต้อง กรุณา reload แล้วลองใหม่', freshCsrf), 403);
+    return renderWithError('CSRF token ไม่ถูกต้อง กรุณา reload แล้วลองใหม่', 403);
   }
 
   const username = String(body.get('username') ?? '').trim();
@@ -905,8 +917,8 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
   const password = String(body.get('password') ?? '');
   const role = String(body.get('role') ?? 'viewer');
 
-  if (!username || !email || !password) return html(userFormPage(user, undefined, 'กรุณากรอกข้อมูลให้ครบ', freshCsrf));
-  if (password.length < 8) return html(userFormPage(user, undefined, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', freshCsrf));
+  if (!username || !email || !password) return renderWithError('กรุณากรอกข้อมูลให้ครบ');
+  if (password.length < 8) return renderWithError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
 
   const salt = generateToken(16);
   const hash = await hashPassword(password, salt);
@@ -918,7 +930,7 @@ async function handleAdminUserNew(req: Request, env: Env): Promise<Response> {
     ).bind(newId, username, email, hash, salt, role, Date.now(), user.id).run();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return html(userFormPage(user, undefined, msg.includes('UNIQUE') ? 'Username หรือ Email ซ้ำ' : 'เกิดข้อผิดพลาด', freshCsrf));
+    return renderWithError(msg.includes('UNIQUE') ? 'Username หรือ Email ซ้ำ' : 'เกิดข้อผิดพลาด');
   }
 
   return flashRedirect('/admin/users', `✓ สร้าง user ${username} แล้ว`);
@@ -1570,8 +1582,8 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/users/new') return handleAdminUserNew(req, env);
 
   // admin waiting room
-  if (path === '/admin/waiting-room' && method === 'GET') return handleAdminWaitingRoom(req, env);
-  if (path === '/admin/waiting-room/reset' && method === 'POST') return handleAdminWaitingRoomReset(req, env);
+  if (path === '/admin/wr-dashboard' && method === 'GET') return handleAdminWaitingRoom(req, env);
+  if (path === '/admin/wr-dashboard/reset' && method === 'POST') return handleAdminWaitingRoomReset(req, env);
 
   // submission detail + file
   const subMatch = path.match(/^\/admin\/submissions\/([^/]+)$/);

@@ -1,7 +1,7 @@
 import type { Submission, User } from 'shared/types';
 import { FORM_TYPES } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, statusBadge, formatDate, shortId, paginationHtml, refreshBarHtml } from './layout';
+import { adminLayout, statusBadge, formatDate, shortId, paginationHtml, refreshBarHtml, formTypeBadge } from './layout';
 
 function sortLink(label: string, col: string, filters: Record<string, string>): string {
   const active = (filters.sort ?? 'dispatched_at') === col;
@@ -33,7 +33,7 @@ export function dispatchedPage(
       <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">${esc(formatDate(s.dispatched_at))}</td>
       <td style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap">${esc(formatDate(s.completed_at))}</td>
       <td><code title="${esc(s.id)}">${esc(shortId(s.id))}</code></td>
-      <td><span style="font-size:12px;background:#fff0c2;color:#7a4010;padding:2px 8px;border:1px solid #ffd06a;font-weight:400">${esc(s.form_type)}</span></td>
+      <td>${formTypeBadge(s.form_type)}</td>
       <td>${esc(data.fullName ?? '—')}</td>
       <td>${statusBadge(s.status)}</td>
       <td style="text-align:center;color:var(--text-muted)">${s.retry_count}</td>

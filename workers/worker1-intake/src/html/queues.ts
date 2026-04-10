@@ -1,7 +1,7 @@
 import type { User } from 'shared/types';
 import { FORM_TYPES, FORMS_CONFIG } from 'shared/forms-config';
 import { esc } from '../validators';
-import { adminLayout, refreshBarHtml } from './layout';
+import { adminLayout, refreshBarHtml, queueCountBadge } from './layout';
 
 interface QueueRow {
   form_type: string;
@@ -39,28 +39,22 @@ export function queueStatusPage(
 
     return `<tr style="${hasProblem ? 'background:#fff8e6' : ''}">
       <td style="font-size:14px">${esc(r.form_type)}</td>
-      <td style="text-align:center">
-        ${r.pending > 0
-          ? `<span style="background:#fff0c2;color:#7a4a00;padding:2px 10px;border:1px solid #ffa110;font-size:13px">${r.pending}</span>`
-          : `<span style="color:#c8a86b;font-size:13px">${r.pending}</span>`}
-      </td>
-      <td style="text-align:center">
-        ${r.dispatching > 0
-          ? `<span style="background:#ffe295;color:#6b3800;padding:2px 10px;border:1px solid #ff8105;font-size:13px">${r.dispatching}</span>`
-          : `<span style="color:#c8a86b;font-size:13px">${r.dispatching}</span>`}
-      </td>
-      <td style="text-align:center;color:#5a4020;font-size:14px">${r.complete_24h}</td>
-      <td style="text-align:center;${r.failed_24h > 0 ? 'color:#fa520f' : 'color:#c8a86b'};font-size:14px">${r.failed_24h}</td>
+      <td style="text-align:center">${queueCountBadge(r.pending, 'pending')}</td>
+      <td style="text-align:center">${queueCountBadge(r.dispatching, 'dispatching')}</td>
+      <td style="text-align:center;color:#15803d;font-size:14px">${r.complete_24h}</td>
+      <td style="text-align:center;font-size:14px">${r.failed_24h > 0
+        ? `<span style="color:#b91c1c;font-weight:600">${r.failed_24h}</span>`
+        : `<span style="color:#94a3b8">${r.failed_24h}</span>`}</td>
       <td style="text-align:center">
         ${successRate !== null
-          ? `<span style="color:${successRate >= 90 ? '#5a4020' : successRate >= 70 ? '#ffa110' : '#fa520f'};font-size:14px">${successRate}%</span>`
-          : '<span style="color:#c8a86b">—</span>'}
+          ? `<span style="color:${successRate >= 90 ? '#15803d' : successRate >= 70 ? '#b45309' : '#b91c1c'};font-size:14px;font-weight:600">${successRate}%</span>`
+          : '<span style="color:#94a3b8">—</span>'}
       </td>
       <td style="text-align:center;color:var(--text-muted);font-size:13px">${r.avg_duration_s !== null ? r.avg_duration_s + 's' : '—'}</td>
       <td>
         <div style="display:flex;gap:0.35rem">
           <a href="/admin/submissions?form_type=${esc(r.form_type)}&status=pending" class="btn btn-outline btn-xs">Pending</a>
-          ${r.failed_24h > 0 ? `<a href="/admin/dispatched?form_type=${esc(r.form_type)}&status=failed" class="btn btn-xs" style="background:#fa520f;color:#fff;border-color:#fa520f">Failed</a>` : ''}
+          ${r.failed_24h > 0 ? `<a href="/admin/dispatched?form_type=${esc(r.form_type)}&status=failed" class="btn btn-danger btn-xs">Failed</a>` : ''}
         </div>
       </td>
     </tr>`;

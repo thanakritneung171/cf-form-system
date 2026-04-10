@@ -1,8 +1,5 @@
-import { BASE_CSS, adminLayout } from './layout';
+import { BASE_CSS } from './layout';
 import { esc } from '../validators';
-import type { User } from 'shared/types';
-
-// ── Public-facing waiting room page ───────────────────────────────────────
 
 export interface WaitingRoomData {
   formType: string;
@@ -157,9 +154,6 @@ export function waitingRoomPage(data?: WaitingRoomData): string {
       transition: color .15s, border-color .15s;
     }
     .btn-exit:hover { color: #fa520f; border-color: #fa520f; }
-    .status-msg {
-      font-size: 13px; color: #15803d; font-weight: 600; margin-bottom: 0.5rem;
-    }
 
     /* ── Dark mode ── */
     @media (prefers-color-scheme: dark) {
@@ -269,30 +263,25 @@ ${hasData ? `
   function poll() {
     fetch('/api/waiting-room/acquire?formType=' + encodeURIComponent(FORM_TYPE))
       .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data.ok) {
-          // ได้ slot → ไปหน้าฟอร์ม (handleFormPage จะ set cookie)
+      .then(function(d) {
+        if (d.ok) {
           if (statusTxt) statusTxt.textContent = 'กำลังเข้าสู่แบบฟอร์ม…';
           window.location.href = REDIRECT;
           return;
         }
-        // ยังเต็ม → อัปเดต UI
-        if (posEl && data.position) posEl.textContent = data.position;
-        if (occEl && data.activeCount !== undefined && data.limit) {
-          occEl.textContent = data.activeCount.toLocaleString() + ' / ' + data.limit.toLocaleString();
+        if (posEl && d.position) posEl.textContent = d.position;
+        if (occEl && d.activeCount !== undefined && d.limit) {
+          occEl.textContent = d.activeCount.toLocaleString() + ' / ' + d.limit.toLocaleString();
         }
-        if (pbar && data.activeCount !== undefined && data.limit) {
-          var pct = Math.min(100, Math.round((data.activeCount / data.limit) * 100));
+        if (pbar && d.activeCount !== undefined && d.limit) {
+          var pct = Math.min(100, Math.round((d.activeCount / d.limit) * 100));
           pbar.style.width = pct + '%';
         }
         if (statusTxt) statusTxt.textContent = 'กำลังตรวจสอบทุก ${data!.retryAfter} วินาที…';
       })
-      .catch(function() {
-        // network error → retry ตามปกติ
-      });
+      .catch(function() {});
   }
 
-  // Poll ทันทีครั้งแรก แล้วทุก INTERVAL
   setTimeout(poll, 1000);
   setInterval(poll, INTERVAL);
 })();
@@ -301,116 +290,4 @@ ${hasData ? `
 
 </body>
 </html>`;
-}
-
-// ── Admin: Waiting Room Status Dashboard ──────────────────────────────────
-
-export interface WaitingRoomStatusData {
-  formType: string;
-  enabled: boolean;
-  activeCount: number;
-  limit: number;
-  available: number;
-  tokenTtlMinutes: number;
-  shards: number;
-}
-
-export function adminWaitingRoomPage(
-  statuses: WaitingRoomStatusData[],
-  user: User,
-  flash?: string,
-): string {
-  const rows = statuses.map(s => {
-    const pct = s.enabled && s.limit > 0
-      ? Math.min(100, Math.round((s.activeCount / s.limit) * 100))
-      : 0;
-    const isWarning = s.enabled && s.limit > 0 && s.available < s.limit * 0.1;
-    const rowBg = isWarning ? 'background:#fff8e6' : '';
-    const availStyle = isWarning
-      ? 'color:#dc2626;font-weight:700'
-      : 'color:#15803d;font-weight:600';
-
-    return `<tr style="${rowBg}">
-      <td style="padding:0.7rem 1rem"><code style="font-size:0.85rem">${esc(s.formType)}</code></td>
-      <td style="padding:0.7rem 1rem">${s.enabled
-        ? '<span style="color:#15803d;font-weight:600">✅ เปิด</span>'
-        : '<span style="color:#94a3b8">❌ ปิด</span>'}</td>
-      <td style="padding:0.7rem 1rem">${s.enabled
-        ? `${s.activeCount.toLocaleString()} / ${s.limit.toLocaleString()}`
-        : '—'}</td>
-      <td style="padding:0.7rem 1rem"><span style="${s.enabled ? availStyle : ''}">${s.enabled
-        ? s.available.toLocaleString()
-        : '—'}</span></td>
-      <td style="padding:0.7rem 1rem">${s.enabled
-        ? `<div style="background:#f0e6c8;border-radius:999px;height:6px;width:80px;overflow:hidden">
-             <div style="background:linear-gradient(90deg,#ffa110,#fa520f);height:100%;width:${pct}%;border-radius:999px"></div>
-           </div>
-           <span style="font-size:11px;color:#8a6f3e">${pct}%</span>`
-        : '—'}</td>
-      <td style="padding:0.7rem 1rem">${s.enabled ? `${s.tokenTtlMinutes} นาที` : '—'}</td>
-      <td style="padding:0.7rem 1rem">${s.shards}</td>
-      <td style="padding:0.7rem 1rem">${s.enabled
-        ? `<form method="POST" action="/admin/waiting-room/reset?formType=${encodeURIComponent(s.formType)}"
-             style="display:inline"
-             onsubmit="return confirm('Reset waiting room สำหรับ ${esc(s.formType)} ใช่ไหม?\\nผู้ใช้ทุกคนจะต้องขอ token ใหม่')">
-             <button type="submit" style="background:#fa520f;color:#fff;border:none;border-radius:6px;padding:0.3rem 0.75rem;font-size:12px;cursor:pointer">Reset</button>
-           </form>`
-        : '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const enabledCount = statuses.filter(s => s.enabled).length;
-  const warnCount = statuses.filter(s => s.enabled && s.limit > 0 && s.available < s.limit * 0.1).length;
-
-  const content = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem">
-      <div>
-        <h1 style="font-size:1.4rem;font-weight:700;color:var(--black)">🚦 Waiting Room Status</h1>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.3rem">
-          สถานะ Waiting Room ทุก form type
-          — <span style="color:#fa520f;font-weight:600" id="refresh-label">อัปเดตอัตโนมัติทุก 5 วินาที</span>
-        </p>
-      </div>
-      <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
-        <span style="font-size:13px;color:var(--text-muted)">
-          เปิด: <strong>${enabledCount}</strong>
-          ${warnCount > 0 ? `&nbsp;|&nbsp; <span style="color:#dc2626;font-weight:700">⚠️ แน่น: ${warnCount}</span>` : ''}
-        </span>
-        <button onclick="location.reload()" style="border:1px solid var(--border);border-radius:8px;padding:0.35rem 0.85rem;font-size:13px;background:none;cursor:pointer;color:var(--text-muted)">🔄 Refresh</button>
-      </div>
-    </div>
-
-    <div class="card" style="overflow-x:auto;padding:0">
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="border-bottom:2px solid var(--border);text-align:left;background:var(--ivory)">
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Form Type</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">สถานะ</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Active / Limit</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">ว่าง</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">การใช้งาน</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Token TTL</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Shards</th>
-            <th style="padding:0.75rem 1rem;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-    </div>
-
-    <script>
-      // Auto-refresh ทุก 5 วินาที
-      var t = 5;
-      var lbl = document.getElementById('refresh-label');
-      setInterval(function() {
-        t--;
-        if (lbl) lbl.textContent = 'อัปเดตใน ' + t + ' วินาที…';
-        if (t <= 0) location.reload();
-      }, 1000);
-    </script>
-  `;
-
-  return adminLayout('Waiting Room', content, user, 'waiting-room', flash);
 }
