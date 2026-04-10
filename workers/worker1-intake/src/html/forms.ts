@@ -258,7 +258,7 @@ export function indexPage(): string {
 // FORM PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function formPage(config: FormConfig): string {
+export function formPage(config: FormConfig, wrToken?: string): string {
   const fieldsHtml = config.fields.map(field => {
     const id  = `f_${field.name}`;
     const req = field.required ? ' required' : '';
@@ -767,6 +767,39 @@ export function formPage(config: FormConfig): string {
       if (e.key === 'Escape' && popup.classList.contains('show')) stayHere();
     });
   </script>
+${wrToken ? `<script>
+/* ── Waiting Room heartbeat ── */
+(function() {
+  'use strict';
+  var FORM_TYPE = ${JSON.stringify(config.type)};
+  var formDirty = false;
+
+  // ติดตามว่า user กรอกอยู่จริง
+  document.querySelectorAll('input, textarea, select').forEach(function(el) {
+    el.addEventListener('input', function() { formDirty = true; });
+  });
+
+  // Heartbeat ทุก 2 นาที — ยิงเฉพาะเมื่อกรอกอยู่
+  setInterval(function() {
+    if (!formDirty) return;
+    formDirty = false;
+    fetch('/api/waiting-room/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formType: FORM_TYPE }),
+      keepalive: true,
+    }).catch(function() {});
+  }, 2 * 60 * 1000);
+
+  // ปิด tab → คืน slot ทันที (best-effort)
+  window.addEventListener('beforeunload', function() {
+    navigator.sendBeacon(
+      '/api/waiting-room/release',
+      JSON.stringify({ formType: FORM_TYPE })
+    );
+  });
+})();
+</script>` : ''}
 </body>
 </html>`;
 }

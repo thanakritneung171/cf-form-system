@@ -53,8 +53,11 @@ import {
   loadtestPage,
   clearDataPage,
   waitingRoomPage,
+  adminWaitingRoomPage,
 } from './html';
-import type { ClearDataStats } from './html';
+import type { ClearDataStats, WaitingRoomStatusData } from './html';
+import { getWaitingRoomConfig, WAITING_ROOM_CONFIGS } from './waiting-room-config';
+import type { AcquireResult } from './waiting-room';
 
 // ===== Env bindings =====
 // Queue producers แยกต่อ form type เพื่อ isolation และ per-form throughput control
@@ -76,7 +79,10 @@ export interface Env {
   INTAKE_INCIDENT_REPORT: Queue<IntakeMessage>;
   // Webhook queue producer
   WEBHOOK_QUEUE: Queue<WebhookMessage>;
-
+  // Durable Object — Waiting Room
+  WAITING_ROOM: DurableObjectNamespace;
+  WAITING_ROOM_DEFAULT_LIMIT: string;
+  LOAD_TEST_TOKEN: string;
 }
 
 // helper: เลือก intake queue binding ตาม form type
@@ -117,23 +123,167 @@ function flashRedirect(url: string, msg: string): Response {
 }
 
 
+// ===== Waiting Room helpers =====
+
+/** Get DO stub สำหรับ form type + shard index */
+function getWaitingRoomDO(env: Env, formType: string, shardIndex = 0): DurableObjectStub {
+  const config = getWaitingRoomConfig(formType);
+  const suffix = config.shards > 1 ? `-shard-${shardIndex}` : '';
+  const id = env.WAITING_ROOM.idFromName(`room-${formType}${suffix}`);
+  return env.WAITING_ROOM.get(id);
+}
+
+/** คำนวณ fingerprint จาก IP + UA (SHA-256 hex) */
+async function computeFingerprint(req: Request): Promise<string> {
+  const ip = req.headers.get('CF-Connecting-IP') ?? req.headers.get('X-Forwarded-For') ?? 'unknown';
+  const ua = req.headers.get('User-Agent') ?? '';
+  const raw = `${ip}|${ua}`;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** อ่าน waiting room token จาก cookie */
+function getTokenFromCookie(req: Request, formType: string): string | null {
+  const cookie = req.headers.get('Cookie') ?? '';
+  const name = `wr_token_${formType.replace(/-/g, '_')}`;
+  const match = cookie.match(new RegExp(`(?:^|;)\\s*${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** สร้าง Set-Cookie header สำหรับ token */
+function makeWrTokenCookie(formType: string, tokenId: string, ttlSeconds: number): string {
+  const name = `wr_token_${formType.replace(/-/g, '_')}`;
+  return `${name}=${encodeURIComponent(tokenId)}; HttpOnly; Secure; SameSite=Strict; Max-Age=${ttlSeconds}; Path=/`;
+}
+
+/** ล้าง cookie */
+function clearWrTokenCookie(formType: string): string {
+  const name = `wr_token_${formType.replace(/-/g, '_')}`;
+  return `${name}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`;
+}
+
+/** ขอ slot จาก DO (รองรับ sharding) */
+async function acquireSlot(env: Env, formType: string, fingerprint: string): Promise<AcquireResult> {
+  const config = getWaitingRoomConfig(formType);
+  const shardIndex = config.shards > 1 ? Math.floor(Math.random() * config.shards) : 0;
+  const limitPerShard = Math.ceil(config.limit / config.shards);
+  const do_ = getWaitingRoomDO(env, formType, shardIndex);
+  const res = await do_.fetch('https://waiting-room-do/acquire', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fingerprint,
+      formType,
+      limit: limitPerShard,
+      tokenTtlMs: config.tokenTtlMinutes * 60 * 1000,
+      maxSubmits: config.maxSubmitsPerToken,
+    }),
+  });
+  return res.json() as Promise<AcquireResult>;
+}
+
 // ===== Public handlers =====
 
 async function handleIndex(_req: Request, _env: Env): Promise<Response> {
   return html(indexPage());
 }
 
-async function handleFormPage(req: Request, _env: Env): Promise<Response> {
+async function handleFormPage(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const formType = url.pathname.split('/form/')[1];
   if (!isValidFormType(formType)) return new Response('Not found', { status: 404 });
-  return html(formPage(FORMS_CONFIG[formType]));
+
+  const wrConfig = getWaitingRoomConfig(formType);
+
+  // ── Load test bypass ────────────────────────────────────────────────────
+  const loadTestToken = req.headers.get('X-Load-Test-Token');
+  if (loadTestToken && env.LOAD_TEST_TOKEN && loadTestToken === env.LOAD_TEST_TOKEN) {
+    return html(formPage(FORMS_CONFIG[formType]));
+  }
+
+  // ── Waiting room ปิดอยู่ → เข้าฟอร์มตรง ──────────────────────────────
+  if (!wrConfig.enabled) {
+    return html(formPage(FORMS_CONFIG[formType]));
+  }
+
+  // ── มี token ใน cookie แล้ว → verify ──────────────────────────────────
+  const existingTokenId = getTokenFromCookie(req, formType);
+  if (existingTokenId) {
+    const do_ = getWaitingRoomDO(env, formType);
+    const verifyRes = await do_.fetch('https://waiting-room-do/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId: existingTokenId }),
+    });
+    const verified = await verifyRes.json() as { valid: boolean };
+    if (verified.valid) {
+      return html(formPage(FORMS_CONFIG[formType], existingTokenId));
+    }
+    // token หมดอายุ → ต้องขอใหม่ (fall through)
+  }
+
+  // ── ขอ slot จาก DO ──────────────────────────────────────────────────────
+  const fingerprint = await computeFingerprint(req);
+  const result = await acquireSlot(env, formType, fingerprint);
+
+  if (result.ok) {
+    // ได้ slot → set cookie → แสดงฟอร์ม
+    const ttlSeconds = wrConfig.tokenTtlMinutes * 60;
+    return new Response(formPage(FORMS_CONFIG[formType], result.tokenId), {
+      headers: {
+        'Content-Type': 'text/html;charset=utf-8',
+        'Set-Cookie': makeWrTokenCookie(formType, result.tokenId, ttlSeconds),
+      },
+    });
+  }
+
+  // ── เต็ม → แสดงหน้ารอคิว ───────────────────────────────────────────────
+  return html(waitingRoomPage({
+    formType,
+    position: result.position,
+    activeCount: result.activeCount,
+    limit: result.limit,
+    retryAfter: result.retryAfter,
+  }));
 }
 
 async function handleSubmit(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   const formType = url.pathname.split('/submit/')[1] as FormType;
   if (!isValidFormType(formType)) return json({ ok: false, error: 'form type ไม่ถูกต้อง' }, 400);
+
+  // ── Waiting room token verification ────────────────────────────────────
+  const loadTestToken = req.headers.get('X-Load-Test-Token');
+  const isLoadTest = !!(loadTestToken && env.LOAD_TEST_TOKEN && loadTestToken === env.LOAD_TEST_TOKEN);
+  const wrConfig = getWaitingRoomConfig(formType);
+
+  if (!isLoadTest && wrConfig.enabled) {
+    const wrTokenId = getTokenFromCookie(req, formType);
+    if (!wrTokenId) {
+      return json({ ok: false, error: 'กรุณาเข้าแบบฟอร์มผ่านหน้าหลัก' }, 403);
+    }
+    const do_ = getWaitingRoomDO(env, formType);
+    const verifyRes = await do_.fetch('https://waiting-room-do/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId: wrTokenId }),
+    });
+    const verified = await verifyRes.json() as { valid: boolean };
+    if (!verified.valid) {
+      return json({ ok: false, error: 'Token หมดอายุ กรุณาเข้าแบบฟอร์มใหม่' }, 403);
+    }
+    // นับ submit +1
+    const useRes = await do_.fetch('https://waiting-room-do/use-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId: wrTokenId }),
+    });
+    const useData = await useRes.json() as { ok: boolean; error?: string };
+    if (!useData.ok) {
+      return json({ ok: false, error: useData.error ?? 'ส่งครบจำนวนแล้ว' }, 429);
+    }
+  }
+  // ── End waiting room check ─────────────────────────────────────────────
 
   const config = getFormConfig(formType)!;
   let formData: FormData;
@@ -236,6 +386,167 @@ async function handleSubmit(req: Request, env: Env): Promise<Response> {
   }
 
   return json({ ok: true, submission_id: submissionId });
+}
+
+// ===== Waiting Room API handlers =====
+
+async function handleWaitingRoomAcquireAPI(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const formType = url.searchParams.get('formType') ?? '';
+  const wrConfig = getWaitingRoomConfig(formType);
+
+  if (!wrConfig.enabled) {
+    return json({ ok: true, bypass: true });
+  }
+
+  const fingerprint = await computeFingerprint(req);
+  const result = await acquireSlot(env, formType, fingerprint);
+  return json(result);
+}
+
+async function handleWaitingRoomStatusAPI(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const formType = url.searchParams.get('formType') ?? '';
+  const wrConfig = getWaitingRoomConfig(formType);
+
+  if (!wrConfig.enabled) {
+    return json({ enabled: false, formType, activeCount: 0, limit: wrConfig.limit, available: wrConfig.limit });
+  }
+
+  let totalActive = 0;
+  for (let i = 0; i < wrConfig.shards; i++) {
+    const do_ = getWaitingRoomDO(env, formType, i);
+    const res = await do_.fetch('https://waiting-room-do/status');
+    const data = await res.json() as { activeCount: number };
+    totalActive += data.activeCount;
+  }
+
+  return json({
+    enabled: true,
+    formType,
+    activeCount: totalActive,
+    limit: wrConfig.limit,
+    available: Math.max(0, wrConfig.limit - totalActive),
+  });
+}
+
+async function handleWaitingRoomReleaseAPI(req: Request, env: Env): Promise<Response> {
+  let formType = '';
+  try {
+    const body = await req.json() as { formType?: string };
+    formType = body.formType ?? '';
+  } catch {
+    return json({ ok: false }, 400);
+  }
+
+  const wrConfig = getWaitingRoomConfig(formType);
+  if (!wrConfig.enabled) return json({ ok: true });
+
+  const tokenId = getTokenFromCookie(req, formType);
+  if (!tokenId) return json({ ok: true });
+
+  const do_ = getWaitingRoomDO(env, formType);
+  await do_.fetch('https://waiting-room-do/release', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokenId }),
+  });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': clearWrTokenCookie(formType),
+    },
+  });
+}
+
+async function handleWaitingRoomHeartbeatAPI(req: Request, env: Env): Promise<Response> {
+  let formType = '';
+  try {
+    const body = await req.json() as { formType?: string };
+    formType = body.formType ?? '';
+  } catch {
+    return json({ ok: false }, 400);
+  }
+
+  const wrConfig = getWaitingRoomConfig(formType);
+  if (!wrConfig.enabled) return json({ ok: true });
+
+  const tokenId = getTokenFromCookie(req, formType);
+  if (!tokenId) return json({ ok: false, error: 'no token' });
+
+  const do_ = getWaitingRoomDO(env, formType);
+  await do_.fetch('https://waiting-room-do/heartbeat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tokenId, tokenTtlMs: wrConfig.tokenTtlMinutes * 60 * 1000 }),
+  });
+
+  return json({ ok: true });
+}
+
+// ===== Admin Waiting Room handlers =====
+
+async function handleAdminWaitingRoom(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin', 'operator']);
+  if (result instanceof Response) return result;
+  const user = result as User;
+
+  const url = new URL(req.url);
+  const flash = url.searchParams.get('flash') ?? undefined;
+
+  // ดึงสถานะจาก DO ทุก form type ที่เปิด waiting room พร้อมกัน
+  const formTypes = Object.keys(WAITING_ROOM_CONFIGS).filter(ft => ft !== 'default');
+  const statuses: WaitingRoomStatusData[] = await Promise.all(
+    formTypes.map(async (ft) => {
+      const cfg = WAITING_ROOM_CONFIGS[ft];
+      if (!cfg.enabled) {
+        return { formType: ft, enabled: false, activeCount: 0, limit: cfg.limit, available: cfg.limit, tokenTtlMinutes: cfg.tokenTtlMinutes, shards: cfg.shards };
+      }
+      try {
+        let totalActive = 0;
+        for (let i = 0; i < cfg.shards; i++) {
+          const do_ = getWaitingRoomDO(env, ft, i);
+          const res = await do_.fetch('https://waiting-room-do/status');
+          const data = await res.json() as { activeCount: number };
+          totalActive += data.activeCount;
+        }
+        return {
+          formType: ft,
+          enabled: true,
+          activeCount: totalActive,
+          limit: cfg.limit,
+          available: Math.max(0, cfg.limit - totalActive),
+          tokenTtlMinutes: cfg.tokenTtlMinutes,
+          shards: cfg.shards,
+        };
+      } catch {
+        return { formType: ft, enabled: true, activeCount: 0, limit: cfg.limit, available: cfg.limit, tokenTtlMinutes: cfg.tokenTtlMinutes, shards: cfg.shards };
+      }
+    }),
+  );
+
+  return html(adminWaitingRoomPage(statuses, user, flash));
+}
+
+async function handleAdminWaitingRoomReset(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin', 'operator']);
+  if (result instanceof Response) return result;
+
+  const url = new URL(req.url);
+  const formType = url.searchParams.get('formType') ?? '';
+
+  if (!formType || !(formType in WAITING_ROOM_CONFIGS)) {
+    return json({ ok: false, error: 'Invalid formType' }, 400);
+  }
+
+  const cfg = WAITING_ROOM_CONFIGS[formType];
+  for (let i = 0; i < cfg.shards; i++) {
+    const do_ = getWaitingRoomDO(env, formType, i);
+    await do_.fetch('https://waiting-room-do/reset', { method: 'POST' });
+  }
+
+  return flashRedirect('/admin/waiting-room', `✓ Reset waiting room สำหรับ ${formType} แล้ว`);
 }
 
 // ===== Admin auth handlers =====
@@ -1211,8 +1522,14 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path.startsWith('/form/')) return handleFormPage(req, env);
   if (path.startsWith('/submit/') && method === 'POST') return handleSubmit(req, env);
 
-  // waiting room
-  if (path === '/waiting-room') return html(waitingRoomPage());
+  // waiting room static fallback (redirect ไป /)
+  if (path === '/waiting-room') return new Response(null, { status: 302, headers: { Location: '/' } });
+
+  // waiting room API
+  if (path === '/api/waiting-room/acquire') return handleWaitingRoomAcquireAPI(req, env);
+  if (path === '/api/waiting-room/status') return handleWaitingRoomStatusAPI(req, env);
+  if (path === '/api/waiting-room/release' && method === 'POST') return handleWaitingRoomReleaseAPI(req, env);
+  if (path === '/api/waiting-room/heartbeat' && method === 'POST') return handleWaitingRoomHeartbeatAPI(req, env);
 
   // ── Admin login / logout (ไม่ต้องผ่าน auth guard)
   if (path === '/admin/login') return handleAdminLogin(req, env);
@@ -1251,6 +1568,10 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/users' && method === 'GET') return handleAdminUsers(req, env);
   if (path === '/admin/users' && method === 'POST') return handleAdminUserNew(req, env);
   if (path === '/admin/users/new') return handleAdminUserNew(req, env);
+
+  // admin waiting room
+  if (path === '/admin/waiting-room' && method === 'GET') return handleAdminWaitingRoom(req, env);
+  if (path === '/admin/waiting-room/reset' && method === 'POST') return handleAdminWaitingRoomReset(req, env);
 
   // submission detail + file
   const subMatch = path.match(/^\/admin\/submissions\/([^/]+)$/);
@@ -1328,3 +1649,6 @@ export default {
     console.log('Session cleanup done');
   },
 } satisfies ExportedHandler<Env>;
+
+// Export Durable Object class — Cloudflare Workers runtime ต้องการ named export
+export { WaitingRoom } from './waiting-room';
