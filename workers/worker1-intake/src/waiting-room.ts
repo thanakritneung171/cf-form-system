@@ -142,9 +142,11 @@ export class WaitingRoom {
 
     // เต็ม?
     if (this.activeCount >= this.limit) {
+      const queueTtlMs = Math.max(tokenTtlMs * 5, 5 * 60 * 1000);
+      const position = await this.getQueuePosition(fingerprint, queueTtlMs);
       return {
         ok: false,
-        position: this.activeCount - this.limit + 1,
+        position,
         retryAfter: 3,
         activeCount: this.activeCount,
         limit: this.limit,
@@ -167,6 +169,8 @@ export class WaitingRoom {
 
     await this.state.storage.put(`token:${tokenId}`, tokenData);
     await this.state.storage.put(`fp:${fingerprint}`, tokenId);
+    // ได้ slot แล้ว → ลบออกจากคิว (ถ้ามี)
+    await this.state.storage.delete(`queue:${fingerprint}`);
 
     // ตั้ง alarm ถ้ายังไม่มี
     const currentAlarm = await this.state.storage.getAlarm();
@@ -236,6 +240,36 @@ export class WaitingRoom {
     await this.state.storage.put(`token:${tokenId}`, token);
   }
 
+  // ── getQueuePosition ──────────────────────────────────────────────────────
+  // คำนวณลำดับคิวที่แท้จริงโดย scan queue entries ที่ยังไม่หมดอายุ
+  // fingerprint เดิมที่เข้าคิวแล้วจะได้ลำดับเดิมคืน (ไม่นับซ้ำ)
+
+  private async getQueuePosition(fingerprint: string, queueTtlMs: number): Promise<number> {
+    const now = Date.now();
+    const key = `queue:${fingerprint}`;
+
+    // ดึง entry เดิม (ถ้ามี)
+    let entry = await this.state.storage.get<{ joinedAt: number; expiresAt: number }>(key);
+    if (!entry || entry.expiresAt <= now) {
+      // สร้าง entry ใหม่ (เข้าคิวครั้งแรก หรือ entry หมดอายุ)
+      entry = { joinedAt: now, expiresAt: now + queueTtlMs };
+      await this.state.storage.put(key, entry);
+    }
+
+    // นับจำนวน queue entry ที่ยังไม่หมดอายุและเข้าก่อนหรือพร้อมกัน
+    const myJoinedAt = entry.joinedAt;
+    const allEntries = await this.state.storage.list<unknown>({ prefix: 'queue:' });
+    let position = 0;
+    for (const [, value] of allEntries) {
+      const e = value as { joinedAt: number; expiresAt: number };
+      if (e.expiresAt > now && e.joinedAt <= myJoinedAt) {
+        position++;
+      }
+    }
+
+    return Math.max(1, position);
+  }
+
   // ── status ─────────────────────────────────────────────────────────────────
 
   private async status(): Promise<{ activeCount: number; limit: number; available: number }> {
@@ -275,17 +309,24 @@ export class WaitingRoom {
     const toDelete: string[] = [];
 
     for (const [key, value] of allEntries) {
-      if (!key.startsWith('token:')) continue;
-      const token = value as TokenData;
-      if (
-        typeof token === 'object' &&
-        token !== null &&
-        'expiresAt' in token &&
-        token.expiresAt <= now
-      ) {
-        toDelete.push(key);
-        toDelete.push(`fp:${token.fingerprint}`);
-        expiredCount++;
+      if (key.startsWith('token:')) {
+        const token = value as TokenData;
+        if (
+          typeof token === 'object' &&
+          token !== null &&
+          'expiresAt' in token &&
+          token.expiresAt <= now
+        ) {
+          toDelete.push(key);
+          toDelete.push(`fp:${token.fingerprint}`);
+          expiredCount++;
+        }
+      } else if (key.startsWith('queue:')) {
+        // ลบ queue entry ที่หมดอายุออกด้วย
+        const q = value as { joinedAt: number; expiresAt: number };
+        if (typeof q === 'object' && q !== null && 'expiresAt' in q && q.expiresAt <= now) {
+          toDelete.push(key);
+        }
       }
     }
 
