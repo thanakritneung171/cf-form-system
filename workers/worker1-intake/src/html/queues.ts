@@ -88,30 +88,30 @@ export function queueStatusPage(
   </div>
 
   <div class="stat-grid">
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#ffa110"></div>
-      <div class="stat-num" style="color:#7a4a00">${totPending}</div>
-      <div class="stat-lbl">รอดำเนินการ</div>
+    <div class="stat-card" style="background:#eff6ff;border-color:#93c5fd">
+      <div class="stat-accent" style="background:#3b82f6"></div>
+      <div class="stat-num" style="color:#1d4ed8">${totPending}</div>
+      <div class="stat-lbl" style="color:#2563eb">รอดำเนินการ</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#ff8105"></div>
-      <div class="stat-num" style="color:#6b3800">${totDispatching}</div>
-      <div class="stat-lbl">กำลังส่ง</div>
+    <div class="stat-card" style="background:#fffbeb;border-color:#fbbf24">
+      <div class="stat-accent" style="background:#f59e0b"></div>
+      <div class="stat-num" style="color:#b45309">${totDispatching}</div>
+      <div class="stat-lbl" style="color:#92400e">กำลังส่ง</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#c8a86b"></div>
-      <div class="stat-num" style="color:#3d2800">${totComplete}</div>
-      <div class="stat-lbl">สำเร็จ</div>
+    <div class="stat-card" style="background:#f0fdf4;border-color:#86efac">
+      <div class="stat-accent" style="background:#22c55e"></div>
+      <div class="stat-num" style="color:#15803d">${totComplete}</div>
+      <div class="stat-lbl" style="color:#166534">สำเร็จ</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#fa520f"></div>
-      <div class="stat-num" style="color:#fa520f">${totFailed}</div>
-      <div class="stat-lbl">ล้มเหลว</div>
+    <div class="stat-card" style="background:#fff1f2;border-color:#fda4af">
+      <div class="stat-accent" style="background:#ef4444"></div>
+      <div class="stat-num" style="color:#be123c">${totFailed}</div>
+      <div class="stat-lbl" style="color:#9f1239">ล้มเหลว</div>
     </div>
-    ${overallRate !== null ? `<div class="stat-card">
-      <div class="stat-accent" style="background:${overallRate >= 90 ? '#ffa110' : '#fa520f'}"></div>
-      <div class="stat-num" style="color:${overallRate >= 90 ? '#3d2800' : '#fa520f'}">${overallRate}%</div>
-      <div class="stat-lbl">Overall Success Rate</div>
+    ${overallRate !== null ? `<div class="stat-card" style="background:${overallRate >= 90 ? '#eff6ff' : '#fff1f2'};border-color:${overallRate >= 90 ? '#93c5fd' : '#fda4af'}">
+      <div class="stat-accent" style="background:${overallRate >= 90 ? '#3b82f6' : '#ef4444'}"></div>
+      <div class="stat-num" style="color:${overallRate >= 90 ? '#1d4ed8' : '#be123c'}">${overallRate}%</div>
+      <div class="stat-lbl" style="color:${overallRate >= 90 ? '#2563eb' : '#9f1239'}">Overall Success Rate</div>
     </div>` : ''}
   </div>
 

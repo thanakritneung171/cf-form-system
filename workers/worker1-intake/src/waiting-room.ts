@@ -197,6 +197,7 @@ export class WaitingRoom {
     submitCount?: number;
     maxSubmits?: number;
     remaining?: number;
+    expiresAt?: number;
   }> {
     const token = await this.state.storage.get<TokenData>(`token:${tokenId}`);
     if (!token || token.expiresAt <= Date.now()) return { valid: false };
@@ -205,6 +206,7 @@ export class WaitingRoom {
       submitCount: token.submitCount,
       maxSubmits: token.maxSubmits,
       remaining: token.maxSubmits - token.submitCount,
+      expiresAt: token.expiresAt,
     };
   }
 

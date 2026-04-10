@@ -66,25 +66,25 @@ export function dispatchedPage(
   </div>
 
   <div class="stat-grid">
-    <a href="/admin/dispatched?status=complete" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#c8a86b"></div>
-      <div class="stat-num" style="color:#3d2800">${stats.complete}</div>
-      <div class="stat-lbl">สำเร็จ</div>
+    <a href="/admin/dispatched?status=complete" class="stat-card" style="text-decoration:none;background:#f0fdf4;border-color:#86efac">
+      <div class="stat-accent" style="background:#22c55e"></div>
+      <div class="stat-num" style="color:#15803d">${stats.complete}</div>
+      <div class="stat-lbl" style="color:#166534">สำเร็จ</div>
     </a>
-    <a href="/admin/dispatched?status=failed" class="stat-card" style="text-decoration:none">
-      <div class="stat-accent" style="background:#fa520f"></div>
-      <div class="stat-num" style="color:#fa520f">${stats.failed}</div>
-      <div class="stat-lbl">ล้มเหลว</div>
+    <a href="/admin/dispatched?status=failed" class="stat-card" style="text-decoration:none;background:#fff1f2;border-color:#fda4af">
+      <div class="stat-accent" style="background:#ef4444"></div>
+      <div class="stat-num" style="color:#be123c">${stats.failed}</div>
+      <div class="stat-lbl" style="color:#9f1239">ล้มเหลว</div>
     </a>
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#ffa110"></div>
-      <div class="stat-num" style="color:#7a4a00">${stats.successRate}%</div>
-      <div class="stat-lbl">Success Rate</div>
+    <div class="stat-card" style="background:#eff6ff;border-color:#93c5fd">
+      <div class="stat-accent" style="background:#3b82f6"></div>
+      <div class="stat-num" style="color:#1d4ed8">${stats.successRate}%</div>
+      <div class="stat-lbl" style="color:#2563eb">Success Rate</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-accent" style="background:#ff8a00"></div>
-      <div class="stat-num" style="color:#3d2800">${stats.avgDuration}s</div>
-      <div class="stat-lbl">Avg Dispatch Time</div>
+    <div class="stat-card" style="background:#fffbeb;border-color:#fbbf24">
+      <div class="stat-accent" style="background:#f59e0b"></div>
+      <div class="stat-num" style="color:#b45309">${stats.avgDuration}s</div>
+      <div class="stat-lbl" style="color:#92400e">Avg Dispatch Time</div>
     </div>
   </div>
 

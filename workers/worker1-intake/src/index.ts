@@ -215,9 +215,12 @@ async function handleFormPage(req: Request, env: Env): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tokenId: existingTokenId }),
     });
-    const verified = await verifyRes.json() as { valid: boolean };
+    const verified = await verifyRes.json() as { valid: boolean; expiresAt?: number };
     if (verified.valid) {
-      return html(formPage(FORMS_CONFIG[formType], existingTokenId));
+      const remainingSeconds = verified.expiresAt
+        ? Math.max(0, Math.ceil((verified.expiresAt - Date.now()) / 1000))
+        : wrConfig.tokenTtlMinutes * 60;
+      return html(formPage(FORMS_CONFIG[formType], existingTokenId, remainingSeconds));
     }
     // token หมดอายุ → ต้องขอใหม่ (fall through)
   }
@@ -229,7 +232,7 @@ async function handleFormPage(req: Request, env: Env): Promise<Response> {
   if (result.ok) {
     // ได้ slot → set cookie → แสดงฟอร์ม
     const ttlSeconds = wrConfig.tokenTtlMinutes * 60;
-    return new Response(formPage(FORMS_CONFIG[formType], result.tokenId), {
+    return new Response(formPage(FORMS_CONFIG[formType], result.tokenId, ttlSeconds), {
       headers: {
         'Content-Type': 'text/html;charset=utf-8',
         'Set-Cookie': makeWrTokenCookie(formType, result.tokenId, ttlSeconds),
