@@ -881,6 +881,56 @@ async function handleAdminBulkRetry(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, retried: ids.length });
 }
 
+async function handleAdminBulkDelete(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin']);
+  if (result instanceof Response) return result;
+
+  const formData = await req.formData();
+  const ids = formData.getAll('ids').map(String).filter(Boolean);
+
+  if (ids.length === 0) return flashRedirect('/admin/submissions', '❌ ไม่มี ID ที่ระบุ');
+
+  const placeholders = ids.map(() => '?').join(',');
+
+  // Get R2 keys before deleting
+  const fileRows = await env.DB.prepare(
+    `SELECT r2_key FROM submission_files WHERE submission_id IN (${placeholders})`,
+  ).bind(...ids).all<{ r2_key: string }>();
+  const r2Keys = (fileRows.results ?? []).map(r => r.r2_key);
+
+  // Delete from D1
+  await env.DB.prepare(
+    `DELETE FROM submission_files WHERE submission_id IN (${placeholders})`,
+  ).bind(...ids).run();
+  await env.DB.prepare(
+    `DELETE FROM submissions WHERE id IN (${placeholders})`,
+  ).bind(...ids).run();
+
+  // Delete from R2 (best-effort)
+  for (const key of r2Keys) {
+    try { await env.UPLOADS.delete(key); } catch { /* ignore */ }
+  }
+
+  const referer = req.headers.get('Referer') ?? '/admin/submissions';
+  // ถ้าลบจาก detail page ให้ redirect กลับไปที่ list
+  const redirectTo = referer.match(/\/admin\/submissions\/[^/]+/) ? '/admin/submissions' : referer;
+  return flashRedirect(redirectTo, `✓ ลบ ${ids.length} submission(s) แล้ว`);
+}
+
+async function handleAdminRetryAll(req: Request, env: Env): Promise<Response> {
+  const result = await requireRole(req, env, ['admin', 'operator']);
+  if (result instanceof Response) return result;
+
+  const { meta } = await env.DB.prepare(
+    `UPDATE submissions SET status='pending', retry_count=0, last_error=NULL, dispatched_at=NULL
+     WHERE status='failed'`,
+  ).run();
+
+  const count = meta.changes ?? 0;
+  const referer = req.headers.get('Referer') ?? '/admin/submissions';
+  return flashRedirect(referer, `✓ Retry All: ${count} submission(s) แล้ว`);
+}
+
 // ===== Admin users =====
 
 async function handleAdminUsers(req: Request, env: Env): Promise<Response> {
@@ -1593,6 +1643,8 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/queues') return handleAdminQueues(req, env);
   if (path === '/admin/api/stats') return handleAdminStats(req, env);
   if (path === '/admin/bulk-retry' && method === 'POST') return handleAdminBulkRetry(req, env);
+  if (path === '/admin/retry-all' && method === 'POST') return handleAdminRetryAll(req, env);
+  if (path === '/admin/bulk-delete' && method === 'POST') return handleAdminBulkDelete(req, env);
   if (path === '/admin/profile' && method === 'GET') return handleAdminProfile(req, env);
   if (path === '/admin/profile/password' && method === 'POST') return handleAdminProfilePassword(req, env);
   if (path === '/admin/export/submissions.csv') return handleExportCsv(req, env, 'submissions');
