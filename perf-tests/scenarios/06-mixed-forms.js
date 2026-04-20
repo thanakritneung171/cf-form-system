@@ -16,6 +16,7 @@ import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 const perLightScenario = MAX_REQUESTS ? Math.floor(MAX_REQUESTS * 50 / 300) : undefined;
 const perHeavyScenario = MAX_REQUESTS ? Math.floor(MAX_REQUESTS * 10 / 300) : undefined;
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 // ── helper สำหรับแต่ละ form type ──────────────────────────────────────────
 
@@ -23,7 +24,7 @@ function submitForm(formType) {
   const res = http.post(
     `${BASE_URL}/submit/${formType}`,
     buildPayload(formType, __VU, __ITER),
-    { headers: commonHeaders, timeout: '30s' }
+    { headers: commonHeaders, timeout: '30s', tags: { page: `/submit/${formType}`, page_type: 'submit' } }
   );
   check(res, {
     [`${formType} status 200`]: (r) => r.status === 200,
@@ -141,3 +142,7 @@ export const options = {
 // default function ไม่ถูกใช้เมื่อมี scenarios config
 // แต่ k6 ต้องการ export อย่างน้อยหนึ่ง function
 export default function () {}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'mixed-forms');
+}

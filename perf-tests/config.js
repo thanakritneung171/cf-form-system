@@ -1,7 +1,7 @@
 // config.js — ค่า config กลางสำหรับทุก scenario
 // อ่านค่าจาก environment variables ที่ส่งผ่าน k6 run -e หรือ .env
 
-export const BASE_URL = __ENV.BASE_URL || 'https://worker1-intake.softdebut-poc.workers.dev';
+export const BASE_URL = __ENV.BASE_URL || 'https://formsystem.softdebut.online';
 
 // Token สำหรับ identify load test traffic (ใช้ใน header X-Load-Test-Token)
 export const LOAD_TEST_TOKEN = __ENV.LOAD_TEST_TOKEN || 'dev-token';

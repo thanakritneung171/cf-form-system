@@ -6,6 +6,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 export const options = MAX_REQUESTS
   ? {
@@ -34,6 +35,7 @@ export const options = MAX_REQUESTS
 export default function () {
   const res = http.post(`${BASE_URL}/submit/contact`, buildPayload('contact', __VU, __ITER), {
     headers: commonHeaders,
+    tags: { page: '/submit/contact', page_type: 'submit' },
     // timeout สูงขึ้นเพื่อไม่ให้ timeout error บัง error จริง
     timeout: '30s',
   });
@@ -46,4 +48,8 @@ export default function () {
 
   // sleep น้อยเพื่อกดดัน server มากขึ้น
   sleep(0.1);
+}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'stress');
 }

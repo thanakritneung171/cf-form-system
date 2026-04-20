@@ -6,6 +6,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   vus: 1,
@@ -21,6 +22,7 @@ export default function () {
   const payload = buildPayload('contact', __VU, __ITER);
   const res = http.post(`${BASE_URL}/submit/contact`, payload, {
     headers: commonHeaders,
+    tags: { page: '/submit/contact', page_type: 'submit' },
   });
 
   // ตรวจสอบ response ว่าถูกต้อง
@@ -37,4 +39,8 @@ export default function () {
   });
 
   sleep(1);
+}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'smoke');
 }

@@ -1604,6 +1604,7 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path.startsWith('/form/')) return handleFormPage(req, env);
   if (path.startsWith('/submit/') && method === 'POST') return handleSubmit(req, env);
 
+
   // waiting room static fallback (redirect ไป /)
   if (path === '/waiting-room') return new Response(null, { status: 302, headers: { Location: '/' } });
 
