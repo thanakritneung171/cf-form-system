@@ -4,23 +4,35 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 
-export const options = {
-  stages: [
-    { duration: '30s', target: 10   },  // baseline ปกติ
-    { duration: '10s', target: 5000 },  // SPIKE — ทุบทันที
-    { duration: '3m',  target: 5000 },  // hold spike
-    { duration: '10s', target: 10   },  // drop กลับ baseline
-    { duration: '3m',  target: 10   },  // observe recovery
-  ],
-  thresholds: {
-    // ช่วง baseline (ก่อนและหลัง spike) ควรกลับมาตอบได้ปกติ
-    // ไม่ set p95 เพราะ spike phase จะทำให้เกิน — ดูจาก graph แทน
-    http_req_failed: ['rate<0.20'],  // ยอมรับ error สูงสุด 20% ระหว่าง spike
-  },
-};
+export const options = MAX_REQUESTS
+  ? {
+      scenarios: {
+        spike: {
+          executor: 'shared-iterations',
+          vus: 500,
+          iterations: MAX_REQUESTS,
+          maxDuration: '15m',
+        },
+      },
+      thresholds: {
+        http_req_failed: ['rate<0.20'],
+      },
+    }
+  : {
+      stages: [
+        { duration: '30s', target: 10   },  // baseline ปกติ
+        { duration: '10s', target: 5000 },  // SPIKE — ทุบทันที
+        { duration: '3m',  target: 5000 },  // hold spike
+        { duration: '10s', target: 10   },  // drop กลับ baseline
+        { duration: '3m',  target: 10   },  // observe recovery
+      ],
+      thresholds: {
+        http_req_failed: ['rate<0.20'],
+      },
+    };
 
 // event-registration เหมาะที่สุดสำหรับ flash crowd scenario
 export default function () {

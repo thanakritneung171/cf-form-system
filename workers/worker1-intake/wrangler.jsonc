@@ -184,6 +184,6 @@
     // จำนวน concurrent users สูงสุด default (ต่อ form type) — override ใน config
     "WAITING_ROOM_DEFAULT_LIMIT": "10000",
     // Token สำหรับ load test bypass — ตั้งค่าจริงผ่าน wrangler secret put LOAD_TEST_TOKEN
-    "LOAD_TEST_TOKEN": ""
+    "LOAD_TEST_TOKEN": "dev-token"
   }
 }

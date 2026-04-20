@@ -18,6 +18,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
+import { MAX_REQUESTS } from '../config.js';
 
 // ─── Config ───────────────────────────────────────────────────────
 const TARGET_URL = __ENV.TARGET_URL || 'https://formsystem.softdebut.online/';
@@ -29,17 +30,32 @@ const waitingRoomRate = new Rate('waiting_room_rate');
 const wrDuration      = new Trend('waiting_room_duration', true);
 
 // ─── Load Profile ─────────────────────────────────────────────────
-export const options = {
-  stages: [
-    { duration: '2m', target: 200 }, // ramp up
-    { duration: '3m', target: 200 }, // hold
-    { duration: '2m', target: 0 },   // ramp down
-  ],
-  thresholds: {
-    http_req_failed:   ['rate<0.05'],
-    http_req_duration: ['p(95)<5000'],
-  },
-};
+export const options = MAX_REQUESTS
+  ? {
+      scenarios: {
+        waiting_room: {
+          executor: 'shared-iterations',
+          vus: 200,
+          iterations: MAX_REQUESTS,
+          maxDuration: '15m',
+        },
+      },
+      thresholds: {
+        http_req_failed:   ['rate<0.05'],
+        http_req_duration: ['p(95)<5000'],
+      },
+    }
+  : {
+      stages: [
+        { duration: '2m', target: 200 },
+        { duration: '3m', target: 200 },
+        { duration: '2m', target: 0 },
+      ],
+      thresholds: {
+        http_req_failed:   ['rate<0.05'],
+        http_req_duration: ['p(95)<5000'],
+      },
+    };
 
 // ─── Detection: CF Built-in Waiting Room ──────────────────────────
 //

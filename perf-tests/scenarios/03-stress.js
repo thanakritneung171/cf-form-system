@@ -4,22 +4,31 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 
-export const options = {
-  stages: [
-    { duration: '2m',  target: 100  },  // warm up
-    { duration: '3m',  target: 500  },  // ramp ขึ้น
-    { duration: '3m',  target: 1000 },  // เพิ่มแรงดัน
-    { duration: '3m',  target: 2000 },  // stress zone
-    { duration: '3m',  target: 5000 },  // near breaking point
-    { duration: '5m',  target: 5000 },  // hold ที่ peak
-    { duration: '3m',  target: 0    },  // ramp down สังเกต recovery
-  ],
-  // ไม่ set thresholds — เพื่อให้ test ไม่หยุดกลางคัน
-  // ดู metrics หลัง run แทน
-};
+export const options = MAX_REQUESTS
+  ? {
+      scenarios: {
+        stress: {
+          executor: 'shared-iterations',
+          vus: 500,
+          iterations: MAX_REQUESTS,
+          maxDuration: '30m',
+        },
+      },
+    }
+  : {
+      stages: [
+        { duration: '2m',  target: 100  },
+        { duration: '3m',  target: 500  },
+        { duration: '3m',  target: 1000 },
+        { duration: '3m',  target: 2000 },
+        { duration: '3m',  target: 5000 },
+        { duration: '5m',  target: 5000 },
+        { duration: '3m',  target: 0    },
+      ],
+    };
 
 // ใช้ contact เพื่อ isolate queue หลัก
 export default function () {

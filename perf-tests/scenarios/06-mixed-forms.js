@@ -8,7 +8,13 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
+
+// แบ่ง MAX_REQUESTS ให้แต่ละ scenario สัดส่วนตาม VU weight
+// ฟอร์มเบา (50 VU each × 5) = 250 shares, ฟอร์มไฟล์ (10 VU each × 5) = 50 shares → รวม 300
+// ถ้าไม่กำหนด MAX_REQUESTS → ใช้ duration ปกติ (undefined = ไม่จำกัด)
+const perLightScenario = MAX_REQUESTS ? Math.floor(MAX_REQUESTS * 50 / 300) : undefined;
+const perHeavyScenario = MAX_REQUESTS ? Math.floor(MAX_REQUESTS * 10 / 300) : undefined;
 import { buildPayload } from '../helpers/mock-data.js';
 
 // ── helper สำหรับแต่ละ form type ──────────────────────────────────────────
@@ -45,65 +51,75 @@ export const options = {
   scenarios: {
     // ฟอร์มเบา — VU สูง
     contact: {
-      executor: 'constant-vus',
+      executor: perLightScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitContact',
       vus: 50,
-      duration: '5m',
+      iterations: perLightScenario,
+      duration: perLightScenario ? undefined : '5m',
     },
     newsletter: {
-      executor: 'constant-vus',
+      executor: perLightScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitNewsletter',
       vus: 50,
-      duration: '5m',
+      iterations: perLightScenario,
+      duration: perLightScenario ? undefined : '5m',
     },
     feedback: {
-      executor: 'constant-vus',
+      executor: perLightScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitFeedback',
       vus: 50,
-      duration: '5m',
+      iterations: perLightScenario,
+      duration: perLightScenario ? undefined : '5m',
     },
     'event-registration': {
-      executor: 'constant-vus',
+      executor: perLightScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitEventRegistration',
       vus: 50,
-      duration: '5m',
+      iterations: perLightScenario,
+      duration: perLightScenario ? undefined : '5m',
     },
     'product-inquiry': {
-      executor: 'constant-vus',
+      executor: perLightScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitProductInquiry',
       vus: 50,
-      duration: '5m',
+      iterations: perLightScenario,
+      duration: perLightScenario ? undefined : '5m',
     },
     // ฟอร์มมีไฟล์ — VU น้อย เพราะ payload ใหญ่กว่า
     'job-application': {
-      executor: 'constant-vus',
+      executor: perHeavyScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitJobApplication',
       vus: 10,
-      duration: '5m',
+      iterations: perHeavyScenario,
+      duration: perHeavyScenario ? undefined : '5m',
     },
     complaint: {
-      executor: 'constant-vus',
+      executor: perHeavyScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitComplaint',
       vus: 10,
-      duration: '5m',
+      iterations: perHeavyScenario,
+      duration: perHeavyScenario ? undefined : '5m',
     },
     'warranty-claim': {
-      executor: 'constant-vus',
+      executor: perHeavyScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitWarrantyClaim',
       vus: 10,
-      duration: '5m',
+      iterations: perHeavyScenario,
+      duration: perHeavyScenario ? undefined : '5m',
     },
     partnership: {
-      executor: 'constant-vus',
+      executor: perHeavyScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitPartnership',
       vus: 10,
-      duration: '5m',
+      iterations: perHeavyScenario,
+      duration: perHeavyScenario ? undefined : '5m',
     },
     'incident-report': {
-      executor: 'constant-vus',
+      executor: perHeavyScenario ? 'per-vu-iterations' : 'constant-vus',
       exec: 'submitIncidentReport',
       vus: 10,
-      duration: '5m',
+      iterations: perHeavyScenario,
+      duration: perHeavyScenario ? undefined : '5m',
     },
   },
   thresholds: {

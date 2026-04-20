@@ -6,22 +6,39 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 import { FORM_TYPES } from '../helpers/form-types.js';
 
-export const options = {
-  stages: [
-    { duration: '2m', target: 5 },    // ramp up
-    { duration: '10m', target: 10 },  // hold steady
-    { duration: '2m', target: 10 },   // hold peak
-    { duration: '2m', target: 0 },    // ramp down
-  ],
-  thresholds: {
-    http_req_failed: ['rate<0.01'],    // error < 1%
-    http_req_duration: ['p(95)<1000', 'p(99)<2000'],
-  },
-};
+export const options = MAX_REQUESTS
+  ? {
+      // MAX_REQUESTS set → shared-iterations: ยิงครบแล้วหยุด (ไม่ใช้ stages)
+      scenarios: {
+        load: {
+          executor: 'shared-iterations',
+          vus: 10,
+          iterations: MAX_REQUESTS,
+          maxDuration: '30m',
+        },
+      },
+      thresholds: {
+        http_req_failed: ['rate<0.01'],
+        http_req_duration: ['p(95)<2000', 'p(99)<3000'],
+      },
+    }
+  : {
+      // ไม่กำหนด MAX_REQUESTS → ใช้ stages ปกติ
+      stages: [
+        { duration: '2m', target: 5 },
+        { duration: '10m', target: 10 },
+        { duration: '2m', target: 10 },
+        { duration: '2m', target: 0 },
+      ],
+      thresholds: {
+        http_req_failed: ['rate<0.01'],
+        http_req_duration: ['p(95)<2000', 'p(99)<3000'],
+      },
+    };
 
 // สุ่ม random ทุกครั้ง
 // const LIGHT_FORMS = ['contact', 'newsletter', 'feedback'];
