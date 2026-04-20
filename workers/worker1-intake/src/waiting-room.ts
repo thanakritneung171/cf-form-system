@@ -182,8 +182,7 @@ export class WaitingRoom {
 
     // ── 4. เต็ม หรือ มีคิวอยู่และไม่ใช่อันดับ 1 → รอคิว ────────────────────
     if (this.activeCount >= this.limit || (hasQueue && firstInQueue !== fingerprint)) {
-      const queueTtlMs = Math.max(tokenTtlMs * 5, 5 * 60 * 1000);
-      const position = await this.getQueuePosition(fingerprint, queueTtlMs);
+      const position = await this.getQueuePosition(fingerprint);
       return {
         ok: false,
         position,
@@ -280,47 +279,54 @@ export class WaitingRoom {
     await this.state.storage.put(`token:${tokenId}`, token);
   }
 
-  // ── getQueuePosition ──────────────────────────────────────────────────────
-  // คำนวณลำดับคิวที่แท้จริงโดย scan queue entries ที่ยังไม่หมดอายุ
-  // fingerprint เดิมที่เข้าคิวแล้วจะได้ลำดับเดิมคืน (ไม่นับซ้ำ)
+  // Rolling TTL สำหรับ queue entry — ต่ออายุทุกครั้งที่ poll
+  // ถ้าหยุด poll (ปิด tab) entry หมดอายุใน QUEUE_ACTIVE_TTL ms
+  private static readonly QUEUE_ACTIVE_TTL = 20_000; // 20 วินาที
 
-  private async getQueuePosition(fingerprint: string, queueTtlMs: number): Promise<number> {
+  // ── getQueuePosition ──────────────────────────────────────────────────────
+  // สร้าง/ต่ออายุ queue entry แล้วคืนลำดับที่แท้จริง
+  // ทุก poll จะ renew expiresAt → คนที่ปิด tab จะหลุดคิวใน 20 วิ
+
+  private async getQueuePosition(fingerprint: string): Promise<number> {
     const now = Date.now();
     const key = `queue:${fingerprint}`;
 
-    // ดึง entry เดิม (ถ้ามี)
     let entry = await this.state.storage.get<{ joinedAt: number; expiresAt: number }>(key);
     if (!entry || entry.expiresAt <= now) {
-      // สร้าง entry ใหม่ (เข้าคิวครั้งแรก หรือ entry หมดอายุ)
-      entry = { joinedAt: now, expiresAt: now + queueTtlMs };
-      await this.state.storage.put(key, entry);
+      // เข้าคิวครั้งแรก หรือ entry หมดอายุแล้ว → สร้างใหม่
+      entry = { joinedAt: now, expiresAt: now + WaitingRoom.QUEUE_ACTIVE_TTL };
+    } else {
+      // ยังอยู่ในคิว → ต่ออายุ (คง joinedAt เดิม เพื่อรักษาลำดับ)
+      entry = { joinedAt: entry.joinedAt, expiresAt: now + WaitingRoom.QUEUE_ACTIVE_TTL };
     }
+    await this.state.storage.put(key, entry);
 
-    // นับจำนวน queue entry ที่ยังไม่หมดอายุและเข้าก่อนหรือพร้อมกัน
     const myJoinedAt = entry.joinedAt;
     const allEntries = await this.state.storage.list<unknown>({ prefix: 'queue:' });
     let position = 0;
     for (const [, value] of allEntries) {
       const e = value as { joinedAt: number; expiresAt: number };
-      if (e.expiresAt > now && e.joinedAt <= myJoinedAt) {
-        position++;
-      }
+      if (e.expiresAt > now && e.joinedAt <= myJoinedAt) position++;
     }
 
     return Math.max(1, position);
   }
 
   // ── queryQueuePosition ────────────────────────────────────────────────────
-  // อ่านตำแหน่งคิวปัจจุบันโดยไม่ acquire slot (สำหรับ position-only poll)
-  // ไม่สร้าง entry ใหม่ — ถ้า fingerprint ไม่ได้อยู่ในคิวคืน inQueue: false
+  // อ่านตำแหน่งคิว + ต่ออายุ entry (สำหรับ position-only poll ทุก 2 วิ)
+  // ถ้า fingerprint ไม่อยู่ในคิว คืน inQueue: false
 
   private async queryQueuePosition(fingerprint: string): Promise<{ position: number; inQueue: boolean; activeCount: number; limit: number }> {
     const now = Date.now();
-    const entry = await this.state.storage.get<{ joinedAt: number; expiresAt: number }>(`queue:${fingerprint}`);
+    const key = `queue:${fingerprint}`;
+    const entry = await this.state.storage.get<{ joinedAt: number; expiresAt: number }>(key);
 
     if (!entry || entry.expiresAt <= now) {
       return { position: 0, inQueue: false, activeCount: this.activeCount, limit: this.limit };
     }
+
+    // ต่ออายุ rolling TTL
+    await this.state.storage.put(key, { joinedAt: entry.joinedAt, expiresAt: now + WaitingRoom.QUEUE_ACTIVE_TTL });
 
     const myJoinedAt = entry.joinedAt;
     const allEntries = await this.state.storage.list<unknown>({ prefix: 'queue:' });
