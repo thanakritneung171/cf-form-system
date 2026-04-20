@@ -6,6 +6,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   stages: [
@@ -29,6 +30,7 @@ export default function () {
     buildPayload('event-registration', __VU, __ITER),
     {
       headers: commonHeaders,
+      tags: { page: '/submit/event-registration', page_type: 'submit' },
       timeout: '30s',
     }
   );
@@ -39,4 +41,8 @@ export default function () {
   });
 
   sleep(0.2);
+}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'spike');
 }

@@ -85,6 +85,7 @@ bash scripts/run-smoke.sh
 | 4 | `04-spike.js` | 10→5000→10 | ~7m | Flash crowd / event burst |
 | 5 | `05-soak.js` | 200 | 2h | Memory leak / resource exhaustion |
 | 6 | `06-mixed-forms.js` | 280 total | 5m | Queue isolation ทั้ง 10 ฟอร์ม |
+| 7 | `07-user-journey.js` | 0→50 | ~15m | Realistic user flow (index → form → submit) |
 
 ---
 
@@ -216,9 +217,15 @@ cleanup จะลบ:
 **`ERRO connection refused`**  
 → Worker ยังไม่รัน ให้ start `wrangler dev` ก่อน
 
-**`status 429 Too Many Requests`**  
-→ rate limit ถูก trigger — เป็นเรื่องปกติใน stress/spike test  
+**`status 429 Too Many Requests`**
+→ rate limit ถูก trigger — เป็นเรื่องปกติใน stress/spike test
 → ถ้าเกิดใน smoke test = ตั้งค่า rate limit ไว้เข้มเกินไป
+→ Waiting Room เต็ม — `07-user-journey.js` จะ poll `/api/waiting-room/acquire` จนได้ slot อัตโนมัติ
+
+**`429 "ส่งครบจำนวนแล้ว"`**
+→ `maxSubmitsPerToken` ใน `waiting-room-config.ts` ถึง limit แล้ว
+→ เกิดเมื่อ VU เดิม reuse cookie และเจอ form type เดิมซ้ำ จน quota หมด
+→ เป็น behavior ปกติ — ไม่ถือว่าเป็น bug
 
 **`status 422 Unprocessable Entity`**  
 → payload ไม่ถูกต้อง — ดู response body เพื่อดู validation errors  

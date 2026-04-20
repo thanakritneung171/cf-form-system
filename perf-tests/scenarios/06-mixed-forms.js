@@ -10,6 +10,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 // ── helper สำหรับแต่ละ form type ──────────────────────────────────────────
 
@@ -17,7 +18,7 @@ function submitForm(formType) {
   const res = http.post(
     `${BASE_URL}/submit/${formType}`,
     buildPayload(formType, __VU, __ITER),
-    { headers: commonHeaders, timeout: '30s' }
+    { headers: commonHeaders, timeout: '30s', tags: { page: `/submit/${formType}`, page_type: 'submit' } }
   );
   check(res, {
     [`${formType} status 200`]: (r) => r.status === 200,
@@ -125,3 +126,7 @@ export const options = {
 // default function ไม่ถูกใช้เมื่อมี scenarios config
 // แต่ k6 ต้องการ export อย่างน้อยหนึ่ง function
 export default function () {}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'mixed-forms');
+}

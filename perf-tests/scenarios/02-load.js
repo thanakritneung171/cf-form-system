@@ -9,6 +9,7 @@ import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 import { FORM_TYPES } from '../helpers/form-types.js';
+import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   stages: [
@@ -32,6 +33,7 @@ export default function () {
 
   const res = http.post(`${BASE_URL}/submit/${formType}`, payload, {
     headers: commonHeaders,
+    tags: { page: `/submit/${formType}`, page_type: 'submit' },
   });
 
   check(res, {
@@ -42,4 +44,8 @@ export default function () {
   });
 
   sleep(0.5);
+}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'load');
 }

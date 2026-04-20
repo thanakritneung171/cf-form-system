@@ -9,6 +9,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, commonHeaders } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
+import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   vus: 200,
@@ -27,6 +28,7 @@ export default function () {
   const formType = FORMS[__VU % FORMS.length];
   const res = http.post(`${BASE_URL}/submit/${formType}`, buildPayload(formType, __VU, __ITER), {
     headers: commonHeaders,
+    tags: { page: `/submit/${formType}`, page_type: 'submit' },
   });
 
   check(res, {
@@ -34,4 +36,8 @@ export default function () {
   });
 
   sleep(1.5);
+}
+
+export function handleSummary(data) {
+  return makeSummary(data, 'soak');
 }
