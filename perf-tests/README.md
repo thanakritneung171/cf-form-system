@@ -86,6 +86,7 @@ bash scripts/run-smoke.sh
 | 5 | `05-soak.js` | 200 | 2h | Memory leak / resource exhaustion |
 | 6 | `06-mixed-forms.js` | 280 total | 5m | Queue isolation ทั้ง 10 ฟอร์ม |
 | 7 | `07-user-journey.js` | 0→50 | ~15m | Realistic user flow (index → form → submit) |
+| 8 | `08-waiting-room.js` | 0→200 | ~7m | Cloudflare Built-in Waiting Room detection |
 
 ---
 
@@ -234,6 +235,11 @@ cleanup จะลบ:
 **`check failed: has submission_id`**  
 → server ตอบ 200 แต่ body ไม่มี submission_id  
 → ดู worker logs สำหรับ error ภายใน
+
+**`waiting_room_rate = 0` ใน 08-waiting-room.js**
+→ CF Waiting Room ยังไม่ถูก trigger — concurrent users ยังไม่เกิน threshold ใน CF Dashboard
+→ แก้: เพิ่ม VU หรือลด Session Total Threshold ใน CF Dashboard ก่อน test
+→ ถ้า `waiting_room_rate` สูง = WR ทำงานปกติ — คนถูกกักในคิว
 
 **k6 ใช้ RAM สูงใน stress test**  
 → ปกติ เพราะ k6 track metrics ของทุก request  
