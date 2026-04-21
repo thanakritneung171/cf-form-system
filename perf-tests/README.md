@@ -86,6 +86,7 @@ bash scripts/run-smoke.sh
 | 5 | `05-soak.js` | 200 | 2h | Memory leak / resource exhaustion |
 | 6 | `06-mixed-forms.js` | 280 total | 5m | Queue isolation ทั้ง 10 ฟอร์ม |
 | 7 | `07-user-journey.js` | 0→50 | ~15m | Realistic user flow (index → form → submit) |
+| 8 | `08-waiting-room-wave.js` | 250 (one-shot) | ~5m | Waiting Room capacity — นับ active vs queued users |
 
 ---
 
