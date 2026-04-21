@@ -7,16 +7,16 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   vus: 200,
-  duration: '2h',
+  // MAX_REQUESTS set → หยุดที่จำนวน requests, ไม่ set → หยุดตาม duration
+  ...(MAX_REQUESTS ? { iterations: MAX_REQUESTS } : { duration: '2h' }),
   thresholds: {
     http_req_failed: ['rate<0.01'],
-    // p95 ควรคงที่ตลอด 2 ชม. — ถ้าเพิ่มขึ้นเรื่อยๆ = memory leak
     http_req_duration: ['p(95)<2000'],
   },
 };

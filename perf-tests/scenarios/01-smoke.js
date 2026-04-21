@@ -4,17 +4,16 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { BASE_URL, commonHeaders } from '../config.js';
+import { BASE_URL, commonHeaders, MAX_REQUESTS } from '../config.js';
 import { buildPayload } from '../helpers/mock-data.js';
 import { makeSummary } from '../helpers/summary.js';
 
 export const options = {
   vus: 1,
-  duration: '1m',
+  // MAX_REQUESTS set → หยุดที่จำนวน requests, ไม่ set → หยุดตาม duration
+  ...(MAX_REQUESTS ? { iterations: MAX_REQUESTS } : { duration: '1m' }),
   thresholds: {
-    // error rate ต้องต่ำกว่า 1%
     http_req_failed: ['rate<0.01'],
-    // 95th percentile ต้องน้อยกว่า 500ms
     http_req_duration: ['p(95)<500'],
   },
 };
