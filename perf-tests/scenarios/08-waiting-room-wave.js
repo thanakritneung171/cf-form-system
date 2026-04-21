@@ -88,7 +88,8 @@ function isWaitingRoomPage(body) {
     body.includes('waitingrooms-text') ||
     body.includes('Waiting Room powered by Cloudflare') ||
     body.includes('ผู้เข้าใช้เต็ม') ||
-    body.includes('ระบบยุ่ง')
+    body.includes('ระบบยุ่ง')||
+    body.includes('คุณอยู่ในคิว')
   );
 }
 
