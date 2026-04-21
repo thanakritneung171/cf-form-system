@@ -156,6 +156,11 @@
     ]
   },
 
+  // Migration: ลบ WaitingRoom Durable Object class ออกจาก production
+  "migrations": [
+    { "tag": "v2", "deleted_classes": ["WaitingRoom"] }
+  ],
+
   // Scheduled trigger: cleanup expired sessions ทุก 1 ชั่วโมง
   "triggers": {
     "crons": ["0 * * * *"]
