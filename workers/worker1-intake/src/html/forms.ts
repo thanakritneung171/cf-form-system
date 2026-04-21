@@ -258,7 +258,7 @@ export function indexPage(): string {
 // FORM PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function formPage(config: FormConfig, wrToken?: string, wrTtlSeconds?: number): string {
+export function formPage(config: FormConfig): string {
   const fieldsHtml = config.fields.map(field => {
     const id  = `f_${field.name}`;
     const req = field.required ? ' required' : '';
@@ -565,36 +565,9 @@ export function formPage(config: FormConfig, wrToken?: string, wrTtlSeconds?: nu
     }
     .popup-btn-stay:hover { background: var(--cream); border-color: var(--amber-light); color: var(--black); }
 
-    /* ── Token TTL bar ── */
-    .ttl-bar-wrap {
-      display: flex; align-items: center; gap: 0.75rem;
-      padding: 0.55rem 2rem;
-      background: #fffbf2; border-bottom: 1px solid var(--border);
-      transition: background .3s;
-    }
-    .ttl-bar-wrap.ttl-warn   { background: #fff8f0; border-bottom-color: #fbbf9a; }
-    .ttl-bar-wrap.ttl-danger { background: #fff0f0; border-bottom-color: #f87171; }
-    .ttl-bar-icon { flex-shrink: 0; color: var(--text-muted); }
-    .ttl-bar-wrap.ttl-warn   .ttl-bar-icon { color: #fb923c; }
-    .ttl-bar-wrap.ttl-danger .ttl-bar-icon { color: #dc2626; }
-    .ttl-bar-track {
-      flex: 1; height: 5px; background: #eed9a8; border-radius: 3px; overflow: hidden;
-    }
-    .ttl-bar-fill {
-      height: 100%; width: 100%; border-radius: 3px;
-      background: var(--amber); transition: width 1s linear, background .5s;
-    }
-    .ttl-bar-wrap.ttl-warn   .ttl-bar-fill { background: #fb923c; }
-    .ttl-bar-wrap.ttl-danger .ttl-bar-fill { background: #dc2626; }
-    .ttl-bar-text {
-      font-size: 11px; color: var(--text-muted); white-space: nowrap; min-width: 80px; text-align: right;
-    }
-    .ttl-bar-wrap.ttl-danger .ttl-bar-text { color: #dc2626; font-weight: 600; }
-
     @media (max-width: 600px) {
       .form-card { padding: 1.5rem 1.25rem; }
       .popup-btn-wrap { flex-direction: column-reverse; }
-      .ttl-bar-wrap { padding: 0.5rem 1rem; }
     }
   </style>
 </head>
@@ -611,14 +584,6 @@ export function formPage(config: FormConfig, wrToken?: string, wrTtlSeconds?: nu
       กลับหน้าหลัก
     </a>
   </header>
-
-${wrToken && wrTtlSeconds ? `
-  <!-- Token TTL bar -->
-  <div class="ttl-bar-wrap" id="ttlBar">
-    <svg class="ttl-bar-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    <div class="ttl-bar-track"><div class="ttl-bar-fill" id="ttlFill"></div></div>
-    <div class="ttl-bar-text" id="ttlText">เหลือ — วินาที</div>
-  </div>` : ''}
 
   <!-- Form hero -->
   <div class="form-outer">
@@ -802,125 +767,6 @@ ${wrToken && wrTtlSeconds ? `
       if (e.key === 'Escape' && popup.classList.contains('show')) stayHere();
     });
   </script>
-${wrToken ? `<script>
-/* ── Waiting Room heartbeat + TTL countdown ── */
-(function() {
-  'use strict';
-  var FORM_TYPE   = ${JSON.stringify(config.type)};
-  var SAVE_KEY    = 'wr_form_data_' + FORM_TYPE;
-  var formDirty   = false;
-
-  // ── บันทึก / กู้คืนข้อมูลฟอร์ม ──────────────────────────────────────────
-  function saveFormData() {
-    var data = {};
-    document.querySelectorAll('#mainForm [name]').forEach(function(el) {
-      var e = el;
-      if (e.type === 'checkbox') {
-        if (!data[e.name]) data[e.name] = [];
-        if (e.checked) data[e.name].push(e.value);
-      } else if (e.type === 'file') {
-        // ไม่สามารถบันทึก file input ได้
-      } else {
-        data[e.name] = e.value;
-      }
-    });
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(_) {}
-  }
-
-  function restoreFormData() {
-    var raw;
-    try { raw = localStorage.getItem(SAVE_KEY); } catch(_) { return; }
-    if (!raw) return;
-    var data;
-    try { data = JSON.parse(raw); } catch(_) { return; }
-    document.querySelectorAll('#mainForm [name]').forEach(function(el) {
-      var e = el;
-      var val = data[e.name];
-      if (val === undefined) return;
-      if (e.type === 'checkbox') {
-        e.checked = Array.isArray(val) && val.indexOf(e.value) !== -1;
-      } else if (e.type !== 'file') {
-        e.value = val;
-      }
-    });
-    try { localStorage.removeItem(SAVE_KEY); } catch(_) {}
-  }
-
-  // กู้คืนข้อมูลที่บันทึกไว้ (ถ้ามี) ทันทีที่โหลดหน้า
-  restoreFormData();
-
-  // ติดตามว่า user กรอกอยู่จริง
-  document.querySelectorAll('input, textarea, select').forEach(function(el) {
-    el.addEventListener('input', function() { formDirty = true; });
-  });
-
-  // Heartbeat ทุก 2 นาที — ยิงเฉพาะเมื่อกรอกอยู่
-  setInterval(function() {
-    if (!formDirty) return;
-    formDirty = false;
-    fetch('/api/waiting-room/heartbeat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ formType: FORM_TYPE }),
-      keepalive: true,
-    }).catch(function() {});
-  }, 2 * 60 * 1000);
-
-  // ปิด tab → คืน slot ทันที (best-effort)
-  window.addEventListener('beforeunload', function() {
-    navigator.sendBeacon(
-      '/api/waiting-room/release',
-      JSON.stringify({ formType: FORM_TYPE })
-    );
-  });
-
-  ${wrTtlSeconds ? `
-  // ── TTL Countdown bar ────────────────────────────────────────────────────
-  var ttlBar  = document.getElementById('ttlBar');
-  var ttlFill = document.getElementById('ttlFill');
-  var ttlText = document.getElementById('ttlText');
-  var ttlTotal   = ${wrTtlSeconds};
-  var ttlRemain  = ttlTotal;
-
-  function updateTtlBar() {
-    var pct = ttlTotal > 0 ? (ttlRemain / ttlTotal) * 100 : 0;
-    ttlFill.style.width = pct + '%';
-
-    var m = Math.floor(ttlRemain / 60);
-    var s = ttlRemain % 60;
-    ttlText.textContent = m > 0
-      ? 'เหลือ ' + m + ':' + (s < 10 ? '0' : '') + s + ' นาที'
-      : 'เหลือ ' + ttlRemain + ' วินาที';
-
-    ttlBar.classList.remove('ttl-warn', 'ttl-danger');
-    if (ttlRemain <= 30)      ttlBar.classList.add('ttl-danger');
-    else if (ttlRemain <= 60) ttlBar.classList.add('ttl-warn');
-  }
-
-  function onTtlExpired() {
-    saveFormData();
-    ttlText.textContent = 'หมดเวลา — กำลังเข้าคิวใหม่…';
-    ttlFill.style.width = '0%';
-    ttlBar.classList.add('ttl-danger');
-    // redirect กลับหน้าฟอร์ม (เข้าคิวใหม่) หลัง 1.5 วินาที
-    setTimeout(function() {
-      window.location.href = '/form/' + encodeURIComponent(FORM_TYPE);
-    }, 1500);
-  }
-
-  updateTtlBar();
-  var ttlTimer = setInterval(function() {
-    ttlRemain--;
-    if (ttlRemain <= 0) {
-      clearInterval(ttlTimer);
-      onTtlExpired();
-    } else {
-      updateTtlBar();
-    }
-  }, 1000);
-  ` : ''}
-})();
-</script>` : ''}
 </body>
 </html>`;
 }

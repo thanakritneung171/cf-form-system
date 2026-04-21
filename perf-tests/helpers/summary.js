@@ -13,11 +13,9 @@ export function makeSummary(data, scenarioName) {
   const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const timeStr = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 
-  const logFile       = `logs/${dateStr}_${timeStr}_${scenarioName}.log`;
-  const pageStats     = collectPageStats(data.metrics);
-  const wrStats       = collectWaitingRoomStats(data.metrics);
-  const submitWrStats = collectSubmitWaitingRoomStats(data.metrics);
-  const logContent    = buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStats, submitWrStats);
+  const logFile    = `logs/${dateStr}_${timeStr}_${scenarioName}.log`;
+  const pageStats  = collectPageStats(data.metrics);
+  const logContent = buildLogContent(data, scenarioName, dateStr, timeStr, pageStats);
 
   return {
     stdout:    textSummary(data, { indent: ' ', enableColors: true }),
@@ -60,71 +58,10 @@ function collectPageStats(metrics) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// collect waiting room hits จาก custom counter `waiting_room_hits`
-// ──────────────────────────────────────────────────────────────────────────────
-
-function collectWaitingRoomStats(metrics) {
-  const result = { total: 0, byForm: {} };
-
-  for (const [key, metric] of Object.entries(metrics)) {
-    if (!key.startsWith('waiting_room_hits')) continue;
-
-    const v = metric.values ?? {};
-    const count = v.count ?? 0;
-    if (count === 0) continue;
-
-    // key รูปแบบ "waiting_room_hits" หรือ "waiting_room_hits{form_type:contact}"
-    const m = key.match(/\{[^}]*\bform_type:([^,}]+)/);
-    if (m) {
-      const formType = m[1].trim();
-      result.byForm[formType] = (result.byForm[formType] ?? 0) + count;
-    } else {
-      // total counter (ไม่มี tag)
-      result.total = count;
-    }
-  }
-
-  // ถ้ามี byForm ให้ total = ผลรวม
-  const byFormTotal = Object.values(result.byForm).reduce((a, b) => a + b, 0);
-  if (byFormTotal > result.total) result.total = byFormTotal;
-
-  return result;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// collect submit_waiting_room_hits — submit ได้ HTML waiting room กลับมา
-// ──────────────────────────────────────────────────────────────────────────────
-
-function collectSubmitWaitingRoomStats(metrics) {
-  const result = { total: 0, byForm: {} };
-
-  for (const [key, metric] of Object.entries(metrics)) {
-    if (!key.startsWith('submit_waiting_room_hits')) continue;
-
-    const v = metric.values ?? {};
-    const count = v.count ?? 0;
-    if (count === 0) continue;
-
-    const m = key.match(/\{[^}]*\bform_type:([^,}]+)/);
-    if (m) {
-      const formType = m[1].trim();
-      result.byForm[formType] = (result.byForm[formType] ?? 0) + count;
-    } else {
-      result.total = count;
-    }
-  }
-
-  const byFormTotal = Object.values(result.byForm).reduce((a, b) => a + b, 0);
-  if (byFormTotal > result.total) result.total = byFormTotal;
-
-  return result;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // build log text
 // ──────────────────────────────────────────────────────────────────────────────
 
-function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStats, submitWrStats) {
+function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats) {
   const lines = [];
   const SEP   = '─'.repeat(76);
 
@@ -162,12 +99,6 @@ function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStat
   lines.push(`  Avg response     : ${avgDur} ms`);
   lines.push(`  p(95) response   : ${p95} ms`);
   lines.push(`  p(99) response   : ${p99} ms`);
-  if (wrStats.total > 0) {
-    lines.push(`  Waiting Room เจอ : ${wrStats.total} ครั้ง  (ตอนเปิดหน้าฟอร์ม)`);
-  }
-  if (submitWrStats && submitWrStats.total > 0) {
-    lines.push(`  Submit → WR HTML : ${submitWrStats.total} ครั้ง  (submit ได้ HTML waiting room กลับมา)`);
-  }
   lines.push('');
   lines.push(SEP);
 
@@ -197,17 +128,12 @@ function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStat
         entries: allEntries.filter(([p]) => p.startsWith('/submit/')),
       },
       {
-        name:    'Waiting Room API (poll ขอ slot)',
-        entries: allEntries.filter(([p]) => p.startsWith('/api/waiting-room/')),
-      },
-      {
-        // หน้าอื่น ๆ ที่เปิด (catch-all — แสดงทุก path ที่ถูก tag แต่ไม่อยู่ใน category ข้างบน)
+        // หน้าอื่น ๆ ที่เปิด (catch-all)
         name:    'หน้าอื่น ๆ ที่เปิด',
         entries: allEntries.filter(([p]) =>
           p !== '/' &&
           !p.startsWith('/form/') &&
-          !p.startsWith('/submit/') &&
-          !p.startsWith('/api/waiting-room/')
+          !p.startsWith('/submit/')
         ),
       },
     ];
@@ -268,48 +194,6 @@ function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStat
   }
 
   lines.push(SEP);
-
-  // ── Waiting Room stats ──
-  if (wrStats.total > 0) {
-    lines.push('');
-    lines.push('  🚦 Waiting Room — form ที่ถูก block');
-    lines.push('');
-    lines.push(`  เจอ Waiting Room รวม : ${wrStats.total} ครั้ง`);
-    lines.push('');
-
-    const wrEntries = Object.entries(wrStats.byForm).sort((a, b) => b[1] - a[1]);
-    if (wrEntries.length > 0) {
-      lines.push('  ' + 'Form Type'.padEnd(36) + 'เจอกี่ครั้ง');
-      lines.push('  ' + '─'.repeat(50));
-      for (const [formType, count] of wrEntries) {
-        lines.push('  ' + formType.padEnd(36) + count);
-      }
-    }
-
-    lines.push('');
-    lines.push(SEP);
-  }
-
-  // ── Submit → Waiting Room HTML stats ──
-  if (submitWrStats && submitWrStats.total > 0) {
-    lines.push('');
-    lines.push('  ⚠️  Submit ได้ HTML Waiting Room กลับมา (WARN ใน log)');
-    lines.push('');
-    lines.push(`  รวม : ${submitWrStats.total} ครั้ง  (submit ส่งไปแล้วได้ waiting room HTML แทน JSON)`);
-    lines.push('');
-
-    const swrEntries = Object.entries(submitWrStats.byForm).sort((a, b) => b[1] - a[1]);
-    if (swrEntries.length > 0) {
-      lines.push('  ' + 'Form Type'.padEnd(36) + 'ครั้ง');
-      lines.push('  ' + '─'.repeat(50));
-      for (const [formType, count] of swrEntries) {
-        lines.push('  ' + formType.padEnd(36) + count);
-      }
-    }
-
-    lines.push('');
-    lines.push(SEP);
-  }
 
   // ── Checks ──
   const checks    = data.root_group?.checks;

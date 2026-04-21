@@ -698,7 +698,6 @@ export function adminLayout(
     { href: '/admin/submissions', label: 'Submissions', page: 'submissions', icon: '📋' },
     { href: '/admin/dispatched', label: 'Dispatched', page: 'dispatched', icon: '🚀' },
     { href: '/admin/queues', label: 'Queue Status', page: 'queues', icon: '📊' },
-    { href: '/admin/wr-dashboard', label: 'WR Dashboard', page: 'wr-dashboard', icon: '🚦' },
     ...(user.role === 'admin'
       ? [
           { href: '/admin/users', label: 'Users', page: 'users', icon: '👥' },

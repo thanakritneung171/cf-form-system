@@ -8,7 +8,3 @@ export { queueStatusPage } from './queues';
 export { loadtestPage } from './loadtest';
 export { clearDataPage } from './clear-data';
 export type { ClearDataStats } from './clear-data';
-export { waitingRoomPage } from './waiting-room';
-export type { WaitingRoomData } from './waiting-room';
-export { wrDashboardPage } from './wr-dashboard';
-export type { WaitingRoomStatusData } from './wr-dashboard';
