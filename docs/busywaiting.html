@@ -7,9 +7,13 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html {
+      color-scheme: light;
+    }
+
     html, body {
       min-height: 100vh;
-      background: #fdf8ec;
+      background: #ffffff;
       font-family: -apple-system, 'Segoe UI', Roboto, Arial, ui-sans-serif, sans-serif;
       font-size: 16px;
       color: #1f1f1f;
@@ -27,8 +31,8 @@
     .topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       height: 54px;
-      background: rgba(253,248,236,0.92);
-      backdrop-filter: blur(10px);
+      background: #ffffff;
+      backdrop-filter: none;
       border-bottom: 1px solid #e8d5a8;
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 1.5rem;
@@ -176,25 +180,6 @@
       40% { transform: scale(1); opacity: 1; }
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-    /* ── Dark mode ── */
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #1a1209; color: #f5e6c8; }
-      .topbar { background: rgba(26,18,9,0.92); border-bottom-color: #3a2c18; }
-      .tb-name { color: #f5e6c8; }
-      .card { background: #231a0d; border-color: #3a2c18; }
-      .tag { background: #3a2200; border-color: #7a4a00; color: #ffa110; }
-      .tag-reject { background: #3a0000; border-color: #7a0000; color: #ff7070; }
-      .tag-prequeue { background: #001035; border-color: #003580; color: #7ab0ff; }
-      h1 { color: #f5e6c8; }
-      .sub { color: #c8a86b; }
-      .info-box { background: #2a1e0a; border-color: #3a2c18; }
-      .info-box h2 { color: #f5e6c8; }
-      .info-box p { color: #c8a86b; }
-      hr { border-top-color: #3a2c18; }
-      .refresh-row, .last-updated { color: #7a5830; }
-      .cf-footer { color: #7a5830; }
-    }
 
     /* ── Responsive ── */
     @media (max-width: 480px) {

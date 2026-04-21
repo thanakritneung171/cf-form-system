@@ -59,17 +59,70 @@ for (const t of FORM_TYPES) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Options
+// Scenarios
+// เลือก scenario ผ่าน env var: -e SCENARIO=ramp | conn_200 | all
+// default = ramp (ถ้าไม่ระบุ)
 // ─────────────────────────────────────────────────────────────────────────────
+const _scenarios = {
+  // ── Ramp profile (default) — ค่อยๆ ขึ้น → hold → peak → ลด ──────────────
+  ramp: {
+    executor: 'ramping-vus',
+    stages: [
+      { duration: '1m', target: 5  },
+      { duration: '3m', target: 20 },
+      { duration: '5m', target: 20 },
+      { duration: '2m', target: 50 },
+      { duration: '3m', target: 50 },
+      { duration: '1m', target: 0  },
+    ],
+    gracefulRampDown: '30s',
+  },
+
+  // ── conn_200 — 200 VU คงที่ 2 นาที ────────────────────────────────────────
+  conn_200: {
+    executor: 'constant-vus',
+    options: {
+      browser: {
+        type: 'chromium',
+      },
+    },
+    vus: 200,
+    duration: '2m',
+    gracefulStop: '5m',
+  },
+  shared_200: {
+    executor: 'shared-iterations',
+    options: {
+      browser: {
+        type: 'chromium'
+      }
+    },
+    vus: 200,
+    iterations: 200,
+    maxDuration: '10m',
+    gracefulStop: '2m'
+  },
+  shared_250: {
+    executor: 'shared-iterations',
+    options: {
+      browser: {
+        type: 'chromium'
+      }
+    },
+    vus: 250,
+    iterations: 250,
+    maxDuration: '10m',
+    gracefulStop: '2m'
+  },
+};
+
+const _selectedScenario = __ENV.SCENARIO || 'ramp';
+const _activeScenarios  = _selectedScenario === 'all'
+  ? _scenarios
+  : { [_selectedScenario]: _scenarios[_selectedScenario] };
+
 export const options = {
-  stages: [
-    { duration: '1m',  target: 5  },
-    { duration: '3m',  target: 20 },
-    { duration: '5m',  target: 20 },
-    { duration: '2m',  target: 50 },
-    { duration: '3m',  target: 50 },
-    { duration: '1m',  target: 0  },
-  ],
+  scenarios: _activeScenarios,
   thresholds: {
     'http_req_duration{page_type:index}':     ['p(95)<800'],
     'http_req_duration{page_type:form-page}': ['p(95)<1500'],

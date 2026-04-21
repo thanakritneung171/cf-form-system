@@ -27,9 +27,13 @@ export function waitingRoomPage(data?: WaitingRoomData): string {
     ${BASE_CSS}
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html {
+      color-scheme: light;
+    }
+
     html, body {
       min-height: 100vh;
-      background: #fdf8ec;
+      background: #ffffff;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -41,8 +45,8 @@ export function waitingRoomPage(data?: WaitingRoomData): string {
     .topbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       height: 54px;
-      background: rgba(253,248,236,0.9);
-      backdrop-filter: blur(10px);
+      background: #ffffff;
+      backdrop-filter: none;
       border-bottom: 1px solid #e8d5a8;
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 1.5rem;
@@ -154,24 +158,6 @@ export function waitingRoomPage(data?: WaitingRoomData): string {
       transition: color .15s, border-color .15s;
     }
     .btn-exit:hover { color: #fa520f; border-color: #fa520f; }
-
-    /* ── Dark mode ── */
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #1a1209; }
-      .topbar { background: rgba(26,18,9,0.9); border-bottom-color: #3a2c18; }
-      .tb-name { color: #f5e6c8; }
-      .card { background: #231a0d; border-color: #3a2c18; color: #f5e6c8; }
-      .tag { background: #3a2200; border-color: #7a4a00; color: #ffa110; }
-      h1 { color: #f5e6c8; }
-      .sub { color: #c8a86b; }
-      hr { border-top-color: #3a2c18; }
-      .qi-box { background: #1a1209; border-color: #3a2c18; }
-      .qi-value { color: #f5e6c8; }
-      .progress-wrap { background: #3a2c18; }
-      .refresh-row { color: #7a5830; }
-      .btn-exit { color: #7a5830; border-color: #3a2c18; }
-      .btn-exit:hover { color: #ffa110; border-color: #ffa110; }
-    }
 
     /* ── Responsive ── */
     @media (max-width: 480px) {
