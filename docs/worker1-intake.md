@@ -27,7 +27,7 @@ Worker หลักของระบบ ทำหน้าที่ 3 อย่
 มีช่อง search สำหรับกรองฟอร์มแบบ real-time
 
 ### GET `/form/:type`
-แสดงหน้าฟอร์ม HTML สำหรับแต่ละประเภท (Mistral warm design)
+แสดงหน้าฟอร์ม HTML สำหรับแต่ละประเภท (Mistral warm design) — render ตรงโดยไม่มีการจัดคิว
 
 | Form Type | คำอธิบาย | มีไฟล์แนบ |
 |-----------|----------|-----------|
@@ -371,5 +371,6 @@ Retry policy: 2xx = ack, 5xx = retry (10s/60s/300s), 4xx = fail (ไม่ retry
 | `DB` | D1 | ฐานข้อมูล submissions, users, webhooks |
 | `UPLOADS` | R2 | เก็บไฟล์แนบ |
 | `SESSION_SECRET` | Secret | HMAC key สำหรับ session + CSRF |
+| `LOAD_TEST_TOKEN` | Secret | Token สำหรับ tag load test traffic |
 | `INTAKE_*` | Queue Producer | 10 queues แยกตาม form type |
 | `WEBHOOK_QUEUE` | Queue Producer | webhook queue |

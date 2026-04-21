@@ -47,16 +47,13 @@ User (Browser)          │   Worker 1          Worker 2          Worker 3      
 
 ### Worker 1 — Intake (`worker1-intake`)
 
-**หน้าที่หลัก:** รับฟอร์ม, เก็บไฟล์, Admin Dashboard, ส่ง Webhook, Waiting Room
+**หน้าที่หลัก:** รับฟอร์ม, เก็บไฟล์, Admin Dashboard, ส่ง Webhook
 
 | Route | Method | ทำอะไร |
 |-------|--------|---------|
 | `/` | GET | หน้าแสดงฟอร์มทั้ง 10 แบบ — แบ่งหมวดหมู่ 4 กลุ่ม พร้อม icons, ช่องค้นหา |
-| `/form/:type` | GET | หน้าฟอร์ม — ถ้า WR enabled จะขอ slot ก่อน แล้ว redirect ถ้าเต็ม |
-| `/submit/:type` | POST | รับ multipart form + ไฟล์ — ตรวจ WR token ถ้า enabled |
-| `/waiting-room` | GET | หน้ารอคิว (แสดงเมื่อ slot เต็ม พร้อม auto-poll) |
-| `/api/waiting-room/acquire` | GET | ขอ slot หรือรับ queue position (`?formType=`) |
-| `/api/waiting-room/status` | GET | สถานะ activeCount / limit (`?formType=`) |
+| `/form/:type` | GET | หน้าฟอร์ม |
+| `/submit/:type` | POST | รับ multipart form + ไฟล์ |
 | `/admin/*` | GET/POST | Admin Dashboard |
 | `/style.css` | GET | CSS สำหรับหน้าฟอร์ม |
 
@@ -66,9 +63,6 @@ User (Browser)          │   Worker 1          Worker 2          Worker 3      
 
 **Scheduled (ทุก 1 ชั่วโมง):**
 - ลบ sessions ที่หมดอายุออกจาก D1
-
-**Durable Objects:**
-- `WaitingRoom` — 1 instance ต่อ form type (`room-{formType}`) — นับ concurrent users, ออก token, alarm cleanup ทุก 60 วิ
 
 ---
 
@@ -118,74 +112,6 @@ POST /api/receive
 ในระบบจริง Worker 3 คือ API ของระบบอื่น เช่น CRM, ERP, Email service
 
 ---
-
-## Waiting Room
-
-### ภาพรวม
-
-ระบบจัดคิวผู้ใช้โดยใช้ **Durable Objects** เพื่อนับ concurrent users แบบ strongly consistent  
-แต่ละ form type มี DO instance แยกกัน (`room-{formType}`)
-
-### การทำงาน
-
-```
-[Browser เปิด /form/event-registration]
-    │
-    ├─ Worker 1 เรียก DO.acquire({ fingerprint, formType })
-    │
-    ├─ slot ว่าง (activeCount < limit)
-    │   → ออก UUID token → เก็บใน DO storage + set cookie wr_token_{formType}
-    │   → แสดงหน้าฟอร์ม
-    │
-    └─ slot เต็ม (activeCount >= limit)
-        → return { ok: false, position, retryAfter }
-        → redirect → /waiting-room?formType=... (หน้ารอคิว)
-        → JavaScript poll /api/waiting-room/acquire ทุก 3 วิ
-        → เมื่อได้ slot → redirect กลับหน้าฟอร์มอัตโนมัติ
-
-[ผู้ใช้ submit ฟอร์ม]
-    │
-    ├─ Worker 1 ตรวจ cookie wr_token_{formType}
-    ├─ เรียก DO.verify(tokenId)
-    ├─ เรียก DO.useSubmit(tokenId) → นับ submitCount++
-    └─ ถ้า submitCount > maxSubmits → 429 Too Many Requests
-
-[ผู้ใช้ปิด tab]
-    │
-    └─ sendBeacon /api/waiting-room/release → DO.release(tokenId) → slot คืนทันที
-
-[DO Alarm ทุก 60 วิ]
-    └─ กวาด token หมดอายุ → ลด activeCount → ตั้ง alarm ครั้งต่อไป
-```
-
-### Config (`waiting-room-config.ts`)
-
-| Form Type | Enabled | Limit | TTL | Max Submits | หมายเหตุ |
-|-----------|---------|-------|-----|-------------|----------|
-| event-registration | ✓ | 5,000 | 5 นาที | 3 | burst ช่วงอีเวนต์ |
-| newsletter | ✓ | 10,000 | 5 นาที | 5 | volume สูงมาก |
-| job-application | ✓ | 3,000 | 10 นาที | 1 | กรอกนาน มีไฟล์ |
-| incident-report | ✓ | 2,000 | 10 นาที | 2 | รูปหลายไฟล์ |
-| อื่นๆ | ✗ | — | — | — | เข้าฟอร์มตรง |
-
-### Fingerprint Dedup
-
-ผู้ใช้คนเดียวเปิดหลาย tab → ใช้ token เดิม (ไม่กิน slot เพิ่ม)  
-fingerprint = hash ของ IP + User-Agent (เก็บ index `fp:{fingerprint}` → tokenId ใน DO storage)
-
-### Load Test Bypass
-
-ส่ง header `X-Load-Test-Token: <token>` → ข้าม waiting room ทั้ง GET form และ POST submit  
-ต้องตั้งค่า secret `LOAD_TEST_TOKEN` ก่อน:
-```bash
-wrangler secret put LOAD_TEST_TOKEN --name worker1-intake
-```
-
-### Admin Dashboard
-
-URL: `/admin/waiting-room`  
-แสดงตาราง: enabled, activeCount/limit, available, progress bar, token TTL, shards  
-ปุ่ม **Reset** (admin only) — ล้าง token ทั้งหมดของ form type นั้น → slot คืน 0
 
 ---
 
@@ -475,7 +401,6 @@ viewer   → ดูอย่างเดียว
 | Dispatched | `/admin/dispatched` | complete/failed + success rate + avg duration · stat cards คลิกได้ · refresh bar |
 | Submission Detail | `/admin/submissions/:id` | ข้อมูลครบ + download ไฟล์ |
 | Queue Status | `/admin/queues` | stats 24h แต่ละ form type · refresh bar · custom date range filter |
-| Waiting Room | `/admin/waiting-room` | สถานะ WR ทุก form · active/limit · progress bar · ปุ่ม Reset (admin) · auto-refresh 5 วิ |
 | Users | `/admin/users` | CRUD users (admin only) |
 | Webhooks | `/admin/webhooks` | CRUD + test + delivery log (admin only) |
 | Profile | `/admin/profile` | เปลี่ยน password |
@@ -557,12 +482,10 @@ submissions/2026-04-08/abc-123/evidence-1.jpg
 | ชื่อ | ประเภท | Worker | คำอธิบาย |
 |------|--------|--------|----------|
 | `SESSION_SECRET` | Secret | W1 | HMAC key สำหรับ session + CSRF |
-| `LOAD_TEST_TOKEN` | Secret | W1 | Token สำหรับ bypass waiting room ตอน load test |
+| `LOAD_TEST_TOKEN` | Secret | W1 | Token สำหรับ tag load test traffic |
 | `WORKER3_URL` | Var | W2 | URL ของ Worker 3 |
-| `WAITING_ROOM_DEFAULT_LIMIT` | Var | W1 | Default concurrent limit ต่อ form type (default: 10000) |
 | `DB` | D1 Binding | W1, W2 | D1 Database |
 | `UPLOADS` | R2 Binding | W1, W2 | R2 Bucket |
-| `WAITING_ROOM` | DO Binding | W1 | Durable Object namespace สำหรับ WaitingRoom |
 | `INTAKE_*` | Queue Binding | W1 | 10 intake queue producers |
 | `DISPATCH_*` | Queue Binding | W2 | 10 dispatch queue producers |
 | `WEBHOOK_QUEUE` | Queue Binding | W1, W2 | Webhook queue producer |
@@ -585,8 +508,6 @@ cf-form-system/
 │   │   │   ├── index.ts           ← main router + queue + scheduled handlers
 │   │   │   ├── auth.ts            ← session, CSRF, password, rate limit
 │   │   │   ├── validators.ts      ← form/file validation
-│   │   │   ├── waiting-room.ts    ← WaitingRoom Durable Object (acquire/release/verify/alarm)
-│   │   │   ├── waiting-room-config.ts ← per-form config (limit, TTL, maxSubmits, shards)
 │   │   │   └── html/              ← HTML pages (SSR) แยกต่อหน้า — Mistral warm design
 │   │   │       ├── index.ts       ← re-export ทั้งหมด
 │   │   │       ├── layout.ts      ← base layout + CSS (Mistral palette) + refreshBarHtml()
@@ -597,9 +518,8 @@ cf-form-system/
 │   │   │       ├── users.ts       ← user management (warm badge styling)
 │   │   │       ├── webhooks.ts    ← webhook management
 │   │   │       ├── queues.ts      ← queue stats (refresh bar + accent colors)
-│   │   │       ├── waiting-room.ts ← หน้ารอคิว (public) + admin WR dashboard
 │   │   │       └── loadtest.ts    ← load test page
-│   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron, DO (WaitingRoom), migrations
+│   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron
 │   │   └── tsconfig.json
 │   │
 │   ├── worker2-dispatcher/
@@ -622,7 +542,6 @@ cf-form-system/
 │   └── gen-wrangler.ts       ← generate wrangler.jsonc จาก forms-config
 │
 ├── docs/
-│   └── waiting-room-testing.md ← 7 test scenarios สำหรับ Waiting Room พร้อม curl
 │
 ├── tests/
 │   └── manual-tests.md       ← 27 test scenarios พร้อม curl commands
