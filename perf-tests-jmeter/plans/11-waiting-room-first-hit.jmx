@@ -89,6 +89,7 @@ props.put("active_first_hit", "0")
 props.put("queue_first_hit", "0")
 props.put("cf_native_wr_hits", "0")
 props.put("queue_to_active", "0")
+props.put("queue_timeout", "0")
 props.put("results_dir", "results")
 log.info("WR counters initialized")
           </stringProp>
@@ -147,14 +148,7 @@ log.info("WR counters initialized")
         </HTTPSamplerProxy>
         <hashTree/>
 
-        <!-- Think time 1-2s -->
-        <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 1-2s" enabled="true">
-          <stringProp name="ConstantTimer.delay">1000</stringProp>
-          <stringProp name="RandomTimer.range">1000</stringProp>
-        </UniformRandomTimer>
-        <hashTree/>
-
-        <!-- ── Step 2: GET /form/${form_type} — FIRST HIT ── -->
+        <!-- ── Step 2: GET /form/${form_type} — FIRST HIT (1-2s think time before) ── -->
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /form/${form_type} (FIRST HIT)" enabled="true">
           <stringProp name="HTTPSampler.path">/form/${form_type}</stringProp>
           <stringProp name="HTTPSampler.method">GET</stringProp>
@@ -165,6 +159,12 @@ log.info("WR counters initialized")
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <!-- Think 1-2s before first-hit (scoped to this sampler only) -->
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 1-2s" enabled="true">
+            <stringProp name="ConstantTimer.delay">1000</stringProp>
+            <stringProp name="RandomTimer.range">1000</stringProp>
+          </UniformRandomTimer>
+          <hashTree/>
           <!-- Detect WR (PostProcessor) -->
           <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Detect WR (first-hit)" enabled="true">
             <stringProp name="cacheKey">true</stringProp>
@@ -179,7 +179,7 @@ log.info("WR counters initialized")
         <!-- ACTIVE path: think → submit → done                  -->
         <!-- ════════════════════════════════════════════════════ -->
         <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If ACTIVE" enabled="true">
-          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "false",)}</stringProp>
+          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "false")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -191,31 +191,12 @@ log.info("WR counters initialized")
           </UniformRandomTimer>
           <hashTree/>
 
-          <!-- Build payload -->
+          <!-- Build payload (shared file: groovy/build-payload.groovy) -->
           <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload" enabled="true">
             <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename">groovy/build-payload.groovy</stringProp>
             <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="script">
-def ft = vars.get("form_type")
-def id = vars.get("unique_id")
-vars.put("has_file", "false")
-vars.put("file_field", "")
-vars.put("file_path", "")
-vars.put("file_mime", "")
-switch (ft) {
-    case "contact": vars.put("extra_fields", "subject=Load test subject ${id}&amp;message=Automated load test ${id}"); break
-    case "job-application": vars.put("extra_fields", "position=Load Test Engineer&amp;experience=3"); vars.put("has_file","true"); vars.put("file_field","resume"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "complaint": vars.put("extra_fields", "category=สินค้าชำรุด&amp;description=Load test complaint ${id}"); vars.put("has_file","true"); vars.put("file_field","photos"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
-    case "event-registration": vars.put("extra_fields", "eventId=EVT-2026-001&amp;dietaryRequirement=ไม่มี&amp;tshirtSize=M"); break
-    case "product-inquiry": vars.put("extra_fields", "productCode=PRD-${ctx.getThreadNum()}&amp;quantity=10&amp;message=Load test ${id}"); break
-    case "warranty-claim": vars.put("extra_fields", "serialNumber=SN-2024-${id}&amp;issue=Load test warranty ${id}"); vars.put("has_file","true"); vars.put("file_field","receipt"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "newsletter": vars.put("extra_fields", "interests=เทคโนโลยี&amp;frequency=ทุกสัปดาห์"); break
-    case "feedback": vars.put("extra_fields", "rating=4&amp;category=บริการ&amp;comment=Load test ${id}"); break
-    case "partnership": vars.put("extra_fields", "companyName=LoadTest Corp ${id}&amp;businessType=เทคโนโลยี"); vars.put("has_file","true"); vars.put("file_field","companyProfile"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "incident-report": vars.put("extra_fields", "location=Location ${ctx.getThreadNum()}&amp;incidentType=ความปลอดภัย&amp;description=Load test incident ${id}"); vars.put("has_file","true"); vars.put("file_field","evidence"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
-    default: vars.put("extra_fields", "")
-}
-            </stringProp>
+            <stringProp name="script"></stringProp>
           </JSR223PreProcessor>
           <hashTree/>
 
@@ -236,20 +217,9 @@ switch (ft) {
             <!-- Dynamically attach extra fields + file -->
             <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Attach Extra Fields + File" enabled="true">
               <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="filename">groovy/attach-fields.groovy</stringProp>
               <stringProp name="scriptLanguage">groovy</stringProp>
-              <stringProp name="script">
-import org.apache.jmeter.protocol.http.util.HTTPFileArg
-def extra = vars.get("extra_fields") ?: ""
-extra.split("&amp;").findAll { it.contains("=") }.each { pair ->
-    def parts = pair.split("=", 2)
-    sampler.addArgument(parts[0], parts.size() > 1 ? parts[1] : "")
-}
-if (vars.get("has_file") == "true") {
-    sampler.setHTTPFiles([new HTTPFileArg(vars.get("file_path"), vars.get("file_field"), vars.get("file_mime"))] as HTTPFileArg[])
-} else {
-    sampler.setHTTPFiles([] as HTTPFileArg[])
-}
-              </stringProp>
+              <stringProp name="script"></stringProp>
             </JSR223PreProcessor>
             <hashTree/>
 
@@ -274,7 +244,7 @@ try {
         <!-- QUEUE path: poll until slot acquired → submit        -->
         <!-- ════════════════════════════════════════════════════ -->
         <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If QUEUED" enabled="true">
-          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "true",)}</stringProp>
+          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "true")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
           <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
@@ -293,7 +263,7 @@ vars.put("still_waiting", "true")
 
           <!-- While loop: poll GET /form/${form_type} until not WR -->
           <WhileController guiclass="WhileControllerGui" testclass="WhileController" testname="Poll Until Slot Acquired" enabled="true">
-            <stringProp name="WhileController.condition">${__groovy(vars.get("still_waiting") == "true",)}</stringProp>
+            <stringProp name="WhileController.condition">${__groovy(vars.get("still_waiting") == "true")}</stringProp>
           </WhileController>
           <hashTree>
 
@@ -341,6 +311,10 @@ if (!isWr) {
     def timeout = (vars.get("POLL_TIMEOUT") ?: "180") as long
     if (elapsed > timeout * 1000) {
         vars.put("still_waiting", "false")
+        synchronized (props) {
+            def t = (props.get("queue_timeout") ?: "0") as int
+            props.put("queue_timeout", String.valueOf(t + 1))
+        }
         log.warn("[Thread ${ctx.getThreadNum()}] POLL TIMEOUT after ${elapsed/1000}s — giving up")
     }
 }
@@ -360,25 +334,9 @@ if (!isWr) {
 
           <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload (queue)" enabled="true">
             <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename">groovy/build-payload.groovy</stringProp>
             <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="script">
-def ft = vars.get("form_type")
-def id = vars.get("unique_id")
-vars.put("has_file", "false"); vars.put("file_field", ""); vars.put("file_path", ""); vars.put("file_mime", "")
-switch (ft) {
-    case "contact": vars.put("extra_fields", "subject=Load test ${id}&amp;message=Queue user ${id}"); break
-    case "job-application": vars.put("extra_fields", "position=Load Test Engineer&amp;experience=3"); vars.put("has_file","true"); vars.put("file_field","resume"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "complaint": vars.put("extra_fields", "category=สินค้าชำรุด&amp;description=Queue complaint ${id}"); vars.put("has_file","true"); vars.put("file_field","photos"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
-    case "event-registration": vars.put("extra_fields", "eventId=EVT-2026-001&amp;dietaryRequirement=ไม่มี&amp;tshirtSize=M"); break
-    case "product-inquiry": vars.put("extra_fields", "productCode=PRD-${ctx.getThreadNum()}&amp;quantity=10&amp;message=Queue ${id}"); break
-    case "warranty-claim": vars.put("extra_fields", "serialNumber=SN-2024-${id}&amp;issue=Queue warranty ${id}"); vars.put("has_file","true"); vars.put("file_field","receipt"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "newsletter": vars.put("extra_fields", "interests=เทคโนโลยี&amp;frequency=ทุกสัปดาห์"); break
-    case "feedback": vars.put("extra_fields", "rating=4&amp;category=บริการ&amp;comment=Queue ${id}"); break
-    case "partnership": vars.put("extra_fields", "companyName=LoadTest Corp ${id}&amp;businessType=เทคโนโลยี"); vars.put("has_file","true"); vars.put("file_field","companyProfile"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
-    case "incident-report": vars.put("extra_fields", "location=Location ${ctx.getThreadNum()}&amp;incidentType=ความปลอดภัย&amp;description=Queue ${id}"); vars.put("has_file","true"); vars.put("file_field","evidence"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
-    default: vars.put("extra_fields", "")
-}
-            </stringProp>
+            <stringProp name="script"></stringProp>
           </JSR223PreProcessor>
           <hashTree/>
 
@@ -397,20 +355,9 @@ switch (ft) {
           <hashTree>
             <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Attach Extra Fields + File" enabled="true">
               <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="filename">groovy/attach-fields.groovy</stringProp>
               <stringProp name="scriptLanguage">groovy</stringProp>
-              <stringProp name="script">
-import org.apache.jmeter.protocol.http.util.HTTPFileArg
-def extra = vars.get("extra_fields") ?: ""
-extra.split("&amp;").findAll { it.contains("=") }.each { pair ->
-    def parts = pair.split("=", 2)
-    sampler.addArgument(parts[0], parts.size() > 1 ? parts[1] : "")
-}
-if (vars.get("has_file") == "true") {
-    sampler.setHTTPFiles([new HTTPFileArg(vars.get("file_path"), vars.get("file_field"), vars.get("file_mime"))] as HTTPFileArg[])
-} else {
-    sampler.setHTTPFiles([] as HTTPFileArg[])
-}
-              </stringProp>
+              <stringProp name="script"></stringProp>
             </JSR223PreProcessor>
             <hashTree/>
           </hashTree>
