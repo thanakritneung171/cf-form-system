@@ -51,8 +51,9 @@ import {
   queueStatusPage,
   loadtestPage,
   clearDataPage,
+  waitingRoomDashboardPage,
 } from './html';
-import type { ClearDataStats } from './html';
+import type { ClearDataStats, WrDbStats, CfWrApiStatus } from './html';
 
 // ===== Env bindings =====
 // Queue producers แยกต่อ form type เพื่อ isolation และ per-form throughput control
@@ -75,6 +76,10 @@ export interface Env {
   // Webhook queue producer
   WEBHOOK_QUEUE: Queue<WebhookMessage>;
   LOAD_TEST_TOKEN: string;
+  // CF Waiting Room API (optional — ถ้าไม่ได้ตั้งค่าจะแสดง DB stats เท่านั้น)
+  CF_API_TOKEN?: string;
+  CF_ZONE_ID?: string;
+  CF_WAITING_ROOM_ID?: string;
 }
 
 // helper: เลือก intake queue binding ตาม form type
@@ -1068,6 +1073,87 @@ async function fireWebhookEvent(eventType: WebhookEvent, submissionId: string, f
   }
 }
 
+// ===== Admin Waiting Room Dashboard =====
+
+async function handleAdminWaitingRoom(req: Request, env: Env): Promise<Response> {
+  const result = await requireAuth(req, env);
+  if (result instanceof Response) return result;
+  const user = result as User;
+
+  const url = new URL(req.url);
+  const flash = url.searchParams.get('flash') ?? undefined;
+  const now = Date.now();
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const oneDayAgo  = now - 24 * 60 * 60 * 1000;
+
+  // ── D1 stats ──────────────────────────────────────────────────────────────
+  const [lastHourRow, last24hRow, byTypeRows] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) as n FROM submissions WHERE submitted_at >= ?')
+      .bind(oneHourAgo).first<{ n: number }>(),
+    env.DB.prepare('SELECT COUNT(*) as n FROM submissions WHERE submitted_at >= ?')
+      .bind(oneDayAgo).first<{ n: number }>(),
+    env.DB.prepare(
+      'SELECT form_type, COUNT(*) as count FROM submissions WHERE submitted_at >= ? GROUP BY form_type ORDER BY count DESC',
+    ).bind(oneHourAgo).all<{ form_type: string; count: number }>(),
+  ]);
+
+  // ── Timeline: 12 slots × 5 minutes (1 hour) ───────────────────────────────
+  const slotMs = 5 * 60 * 1000;
+  const slotCount = 12;
+  const timeline: WrDbStats['timeline'] = [];
+  for (let i = slotCount - 1; i >= 0; i--) {
+    const slotEnd   = now - i * slotMs;
+    const slotStart = slotEnd - slotMs;
+    const label = new Date(slotStart).toLocaleTimeString('th-TH', {
+      timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit',
+    });
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) as n FROM submissions WHERE submitted_at >= ? AND submitted_at < ?',
+    ).bind(slotStart, slotEnd).first<{ n: number }>();
+    timeline.push({ slot: label, count: row?.n ?? 0 });
+  }
+
+  const db: WrDbStats = {
+    lastHour: lastHourRow?.n ?? 0,
+    last24h: last24hRow?.n ?? 0,
+    byFormType: byTypeRows.results,
+    timeline,
+  };
+
+  // ── CF Waiting Room API (optional) ────────────────────────────────────────
+  let cf: CfWrApiStatus | null = null;
+  if (env.CF_API_TOKEN && env.CF_ZONE_ID && env.CF_WAITING_ROOM_ID) {
+    try {
+      const cfRes = await fetch(
+        `https://api.cloudflare.com/client/v4/zones/${env.CF_ZONE_ID}/waiting_rooms/${env.CF_WAITING_ROOM_ID}/status`,
+        { headers: { Authorization: `Bearer ${env.CF_API_TOKEN}`, 'Content-Type': 'application/json' } },
+      );
+      if (cfRes.ok) {
+        const body = await cfRes.json<{
+          result: {
+            status: string;
+            estimated_queued_users: number;
+            estimated_total_active_users: number;
+            max_estimated_time_minutes: number;
+          };
+        }>();
+        const r = body.result;
+        cf = {
+          status: (r.status as CfWrApiStatus['status']) ?? 'unknown',
+          estimatedQueuedUsers: r.estimated_queued_users ?? 0,
+          estimatedTotalActiveUsers: r.estimated_total_active_users ?? 0,
+          maxEstimatedTimeMinutes: r.max_estimated_time_minutes ?? 0,
+          fetchedAt: now,
+        };
+      }
+    } catch (err) {
+      console.warn('CF WR API fetch failed:', err);
+    }
+  }
+
+  return html(waitingRoomDashboardPage(user, db, cf, flash));
+}
+
 // ===== CSS =====
 
 const CSS = `
@@ -1303,6 +1389,7 @@ async function handleFetch(req: Request, env: Env): Promise<Response> {
   if (path === '/admin/profile/password' && method === 'POST') return handleAdminProfilePassword(req, env);
   if (path === '/admin/export/submissions.csv') return handleExportCsv(req, env, 'submissions');
   if (path === '/admin/export/dispatched.csv') return handleExportCsv(req, env, 'dispatched');
+  if (path === '/admin/waiting-room') return handleAdminWaitingRoom(req, env);
   if (path === '/admin/clear-data') return handleAdminClearData(req, env);
   if (path === '/admin/users' && method === 'GET') return handleAdminUsers(req, env);
   if (path === '/admin/users' && method === 'POST') return handleAdminUserNew(req, env);

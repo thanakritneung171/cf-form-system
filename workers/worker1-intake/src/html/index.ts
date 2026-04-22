@@ -8,3 +8,5 @@ export { queueStatusPage } from './queues';
 export { loadtestPage } from './loadtest';
 export { clearDataPage } from './clear-data';
 export type { ClearDataStats } from './clear-data';
+export { waitingRoomDashboardPage } from './waiting-room-dashboard';
+export type { WrDbStats, CfWrApiStatus } from './waiting-room-dashboard';

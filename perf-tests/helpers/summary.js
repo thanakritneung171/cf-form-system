@@ -15,7 +15,8 @@ export function makeSummary(data, scenarioName) {
 
   const logFile    = `logs/${dateStr}_${timeStr}_${scenarioName}.log`;
   const pageStats  = collectPageStats(data.metrics);
-  const logContent = buildLogContent(data, scenarioName, dateStr, timeStr, pageStats);
+  const wrStats    = collectWrStats(data.metrics);
+  const logContent = buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStats);
 
   return {
     stdout:    textSummary(data, { indent: ' ', enableColors: true }),
@@ -58,10 +59,39 @@ function collectPageStats(metrics) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// collect Waiting Room counter stats จาก tag `form_type`
+// ──────────────────────────────────────────────────────────────────────────────
+
+function collectWrStats(metrics) {
+  // ดึงค่า counter แยกต่อ form_type
+  // key pattern: "waiting_room_hits{form_type:contact}" → count
+  function extractByFormType(metricPrefix) {
+    const result = { total: 0, byType: {} };
+    for (const [key, metric] of Object.entries(metrics)) {
+      const count = metric.values?.count ?? 0;
+      if (count === 0) continue;
+      if (key === metricPrefix) {
+        result.total = count;
+        continue;
+      }
+      const m = key.match(new RegExp(`^${metricPrefix}\\{[^}]*form_type:([^,}]+)`));
+      if (m) result.byType[m[1].trim()] = count;
+    }
+    return result;
+  }
+
+  return {
+    wrHits:          extractByFormType('waiting_room_hits'),
+    cfNativeWrHits:  extractByFormType('cf_native_wr_hits'),
+    submitWrHits:    extractByFormType('submit_waiting_room_hits'),
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // build log text
 // ──────────────────────────────────────────────────────────────────────────────
 
-function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats) {
+function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats, wrStats) {
   const lines = [];
   const SEP   = '─'.repeat(76);
 
@@ -194,6 +224,51 @@ function buildLogContent(data, scenarioName, dateStr, timeStr, pageStats) {
   }
 
   lines.push(SEP);
+
+  // ── Waiting Room Hits ──
+  if (wrStats) {
+    const { wrHits, cfNativeWrHits, submitWrHits } = wrStats;
+    const totalWr      = wrHits.total         ?? 0;
+    const totalCfNative = cfNativeWrHits.total ?? 0;
+    const totalSubmitWr = submitWrHits.total   ?? 0;
+
+    lines.push('');
+    lines.push('  🚦 Cloudflare Waiting Room Hits');
+    lines.push('');
+    lines.push(`  "Waiting Room powered by Cloudflare"  : ${totalCfNative} ครั้ง  ← CF native WR`);
+    lines.push(`  Waiting Room รวม (CF native + custom)  : ${totalWr} ครั้ง`);
+    lines.push(`  Submit ได้ WR HTML กลับมา              : ${totalSubmitWr} ครั้ง`);
+
+    // แสดงรายละเอียด CF native WR แยกต่อ form_type
+    if (totalCfNative > 0) {
+      lines.push('');
+      lines.push('  CF Native WR — แยกต่อ form_type:');
+      lines.push('');
+      const sorted = Object.entries(cfNativeWrHits.byType).sort((a, b) => b[1] - a[1]);
+      for (const [type, count] of sorted) {
+        lines.push(`    ${type.padEnd(30)} ${String(count).padStart(5)} ครั้ง`);
+      }
+    }
+
+    // แสดง waiting_room_hits รวม แยกต่อ form_type (เฉพาะที่ > 0 และ CF native ไม่ครอบ)
+    const otherTypes = Object.entries(wrHits.byType).filter(
+      ([type, count]) => count > 0 && !(cfNativeWrHits.byType[type] >= count)
+    );
+    if (otherTypes.length > 0) {
+      lines.push('');
+      lines.push('  WR ทั้งหมด — แยกต่อ form_type:');
+      lines.push('');
+      const sortedAll = Object.entries(wrHits.byType).sort((a, b) => b[1] - a[1]);
+      for (const [type, count] of sortedAll) {
+        const native = cfNativeWrHits.byType[type] ?? 0;
+        const label  = native > 0 ? `(CF native: ${native})` : '';
+        lines.push(`    ${type.padEnd(30)} ${String(count).padStart(5)} ครั้ง  ${label}`);
+      }
+    }
+
+    lines.push('');
+    lines.push(SEP);
+  }
 
   // ── Checks ──
   const checks    = data.root_group?.checks;

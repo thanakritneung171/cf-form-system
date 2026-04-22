@@ -12,7 +12,45 @@ export interface ClearDataStats {
 }
 
 export function clearDataPage(user: User, stats: ClearDataStats, csrfToken: string, flashMessage?: string): string {
+  const isSuccess = flashMessage?.startsWith('✓');
+
+  const popupHtml = flashMessage ? `
+  <!-- ── Popup notification ─────────────────────────────────────────── -->
+  <div id="cdPopupOverlay" style="
+    position:fixed;inset:0;z-index:9000;
+    background:rgba(0,0,0,0.35);
+    display:flex;align-items:center;justify-content:center;
+    animation:fadeIn .18s ease
+  ">
+    <div style="
+      background:#fff;border-radius:20px;padding:2rem 2.5rem;
+      max-width:420px;width:90%;text-align:center;
+      box-shadow:0 24px 80px rgba(0,0,0,0.22);
+      animation:slideUp .2s ease;
+    ">
+      <div style="font-size:2.8rem;margin-bottom:0.75rem">${isSuccess ? '✅' : '❌'}</div>
+      <div style="font-size:1.05rem;font-weight:600;color:${isSuccess ? '#15803d' : '#b91c1c'};margin-bottom:0.5rem">
+        ${isSuccess ? 'เคลียร์ข้อมูลสำเร็จ' : 'เกิดข้อผิดพลาด'}
+      </div>
+      <div style="font-size:0.9rem;color:#4b5563;margin-bottom:1.5rem;line-height:1.6">
+        ${esc(flashMessage)}
+      </div>
+      <button onclick="document.getElementById('cdPopupOverlay').remove()" style="
+        padding:0.55rem 1.75rem;
+        background:${isSuccess ? '#15803d' : '#b91c1c'};
+        color:#fff;border:none;border-radius:10px;
+        font-size:0.875rem;font-weight:600;cursor:pointer;
+        font-family:Arial,ui-sans-serif,system-ui,sans-serif;
+      ">ตกลง</button>
+    </div>
+  </div>
+  <style>
+    @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+    @keyframes slideUp { from { transform:translateY(20px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+  </style>` : '';
+
   const content = `
+    ${popupHtml}
     <style>
       .clear-wrap { max-width: 1100px; margin: 0 auto; }
 
@@ -272,5 +310,6 @@ export function clearDataPage(user: User, stats: ClearDataStats, csrfToken: stri
     </script>
   `;
 
-  return adminLayout('เคลียร์ข้อมูล', content, user, 'clear-data', flashMessage);
+  // ไม่ส่ง flashMessage เข้า adminLayout — ใช้ popup แทน alert bar
+  return adminLayout('เคลียร์ข้อมูล', content, user, 'clear-data');
 }

@@ -2,15 +2,20 @@
 // จำลองพฤติกรรมผู้ใช้จริง ไม่ใช่แค่ยิง API ตรง ๆ
 //
 // Flow ต่อ 1 iteration:
-//   1. GET /                        → เข้าหน้า index
-//   2. think time (1–3 วิ)
-//   3. สุ่ม form type
-//   4. GET /form/{type}             → เปิดหน้าฟอร์ม
-//      ↳ ถ้าติด Waiting Room       → poll /api/waiting-room/acquire จนได้ slot
-//      ↳ timeout 60 วิ → skip iteration นี้
-//   5. think time (2–7 วิ)          → จำลองกรอกข้อมูล
-//   6. POST /submit/{type}          → ส่งฟอร์ม
-//   7. think time (1–2 วิ)
+//   1. jitter sleep (0–30 วิ สุ่ม) → กระจาย VU ไม่ให้ชนพร้อมกัน
+//   2. GET /                        → เข้าหน้า index
+//      ↳ ถ้าติด CF Waiting Room    → retry จนผ่าน (timeout: WR_TIMEOUT_SEC)
+//   3. think time (1–3 วิ)
+//   4. สุ่ม form type
+//   5. GET /form/{type}             → เปิดหน้าฟอร์ม
+//      ↳ ถ้าติด CF Waiting Room    → retry GET /form/{type} จนผ่าน (ไม่ poll API เก่า)
+//      ↳ timeout: WR_TIMEOUT_SEC → skip iteration นี้
+//   6. think time (2–7 วิ)          → จำลองกรอกข้อมูล
+//   7. POST /submit/{type}          → ส่งฟอร์ม
+//   8. think time (1–2 วิ)
+//
+// NOTE: DO Waiting Room (/api/waiting-room/acquire) ถูกถอดออกแล้ว
+//       ใช้ CF Waiting Room แทน — retry หน้าตรงๆ จนผ่านแทนการ poll API
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -21,24 +26,30 @@ import { buildPayload } from '../helpers/mock-data.js';
 import { FORM_TYPES } from '../helpers/form-types.js';
 import { makeSummary } from '../helpers/summary.js';
 
-// ── Custom metric: นับครั้งที่เจอ Waiting Room (แยกตาม formType) ───────────────
-// ใช้ใน log สรุปว่า form ไหนถูก waiting room บ่อยแค่ไหน
+// ── Custom metric: นับครั้งที่เจอ Waiting Room ทั้งหมด (แยกตาม formType) ────────
 const waitingRoomHits = new Counter('waiting_room_hits');
 
+// ── Custom metric: นับครั้งที่เจอ "Waiting Room powered by Cloudflare" โดยตรง ──
+// แยกออกมาจาก waitingRoomHits เพื่อรู้ว่า CF native WR activate กี่ครั้ง
+const cfNativeWrHits = new Counter('cf_native_wr_hits');
+
 // ── Custom metric: submit ได้ HTML waiting room กลับมา (status 200 + HTML) ──────
-// กรณีที่ตรวจสอบ waiting room ที่หน้า form แล้วแต่ยัง slip เข้า submit ไม่ได้
 const submitWaitingRoomHits = new Counter('submit_waiting_room_hits');
 
+// ── Waiting Room timeout (วินาที) — ปรับตาม scenario ──────────────────────────
+// shared_250: VU เยอะ → ต้องรอนาน | ramp: VU น้อย → รอสั้นกว่า
+const WR_TIMEOUT_SEC = parseInt(__ENV.WR_TIMEOUT  || '300', 10); // default 5 นาที
+const WR_RETRY_SEC   = parseInt(__ENV.WR_RETRY    || '15',  10); // retry ทุก 15 วิ
+const JITTER_SEC     = parseInt(__ENV.JITTER       || '30',  10); // jitter สูงสุด 30 วิ
+// wr_flood: THINK_SCALE=0 → skip think time ทั้งหมด เพื่อยิงแน่น
+const THINK_SCALE    = parseFloat(__ENV.THINK_SCALE || '1.0');    // 0.0 = ไม่มี think time
+
 // ── สร้าง threshold entry สำหรับทุก path ──────────────────────────────────────
-// รวมหน้า waiting-room API ด้วย เพื่อให้ k6 track sub-metric
 const _pageThresholds = {};
 const _allPaths = [
   '/',
   ...FORM_TYPES.map((t) => `/form/${t}`),
   ...FORM_TYPES.map((t) => `/submit/${t}`),
-  '/api/waiting-room/acquire',    // waiting room poll API
-  '/api/waiting-room/position',   // ถ้ามีการ poll position
-  '/busy',                        // หน้า high-traffic
 ];
 for (const p of _allPaths) {
   _pageThresholds[`http_reqs{page:${p}}`]         = [];
@@ -50,6 +61,12 @@ for (const p of _allPaths) {
 _pageThresholds['waiting_room_hits'] = [];
 for (const t of FORM_TYPES) {
   _pageThresholds[`waiting_room_hits{form_type:${t}}`] = [];
+}
+
+// ── threshold สำหรับ cf_native_wr_hits (CF "Waiting Room powered by Cloudflare") ─
+_pageThresholds['cf_native_wr_hits'] = [];
+for (const t of [...FORM_TYPES, 'index']) {
+  _pageThresholds[`cf_native_wr_hits{form_type:${t}}`] = [];
 }
 
 // ── threshold สำหรับ submit_waiting_room_hits ──────────────────────────────────
@@ -114,6 +131,18 @@ const _scenarios = {
     maxDuration: '10m',
     gracefulStop: '2m'
   },
+
+  // ── wr_flood — ยิงพร้อมกัน 300 VU ไม่มี jitter ไม่มี think time ──────────
+  // วัตถุประสงค์: บังคับให้ CF Waiting Room activate
+  //   • JITTER=0     → VU ทั้งหมด start พร้อมกันทันที → new_users_per_minute พุ่งสูง
+  //   • THINK_SCALE=0 → ไม่ sleep → request ต่อเนื่อง → active session สะสม > 200
+  //   • 300 VU × 5 นาที → CF เห็น ~300 active sessions พร้อมกัน
+  wr_flood: {
+    executor: 'constant-vus',
+    vus: 300,
+    duration: '5m',
+    gracefulStop: '30s',
+  },
 };
 
 const _selectedScenario = __ENV.SCENARIO || 'ramp';
@@ -137,7 +166,8 @@ export const options = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function thinkTime(minSec, maxSec) {
-  sleep(randomIntBetween(minSec * 10, maxSec * 10) / 10);
+  if (THINK_SCALE <= 0) return; // wr_flood: ข้าม think time ทั้งหมด
+  sleep(randomIntBetween(minSec * 10, maxSec * 10) / 10 * THINK_SCALE);
 }
 
 function getPage(path, pageType) {
@@ -155,53 +185,72 @@ function postSubmit(formType, payload) {
   });
 }
 
+/** ตรวจว่าเป็นหน้า CF native Waiting Room ("Waiting Room powered by Cloudflare") */
+function isCfNativeWrPage(body) {
+  if (!body) return false;
+  return (
+    body.includes('Waiting Room powered by Cloudflare') ||
+    body.includes('waitingrooms-text')
+  );
+}
+
+/** ตรวจว่าเป็นหน้า Waiting Room (ทั้ง CF native และ custom) */
 function isWaitingRoomPage(body) {
   if (!body) return false;
-  // Custom worker WR: มีคำว่า 'waiting-room' (hyphen), 'ผู้เข้าใช้เต็ม', 'ระบบยุ่ง'
-  // Cloudflare WR จริง: มี 'waitingrooms-text', 'Waiting Room powered by Cloudflare'
-  // Fallback: body เป็น HTML (ไม่ใช่ JSON) → แสดงว่าไม่ได้รับ JSON response ที่คาดไว้
   return (
+    isCfNativeWrPage(body) ||
     body.includes('waiting-room') ||
-    body.includes('waitingrooms-text') ||
-    body.includes('Waiting Room powered by Cloudflare') ||
     body.includes('ผู้เข้าใช้เต็ม') ||
     body.includes('ระบบยุ่ง')
   );
 }
 
 /**
- * Poll waiting room acquire จนได้ slot หรือ timeout
- * tag `page` = '/api/waiting-room/acquire' → ปรากฏใน log สรุป
+ * Retry GET path จนได้หน้าจริง (ไม่ใช่ CF Waiting Room) หรือ timeout
+ * ใช้แทน poll /api/waiting-room/acquire ที่ถูกถอดออกแล้ว
+ * @returns response สุดท้ายที่ผ่าน WR หรือ null ถ้า timeout
  */
-function waitForSlot(formType, timeoutSec) {
-  const pollInterval = 3;
-  const maxAttempts  = Math.ceil(timeoutSec / pollInterval);
+function waitForPage(path, pageType, timeoutSec, retryIntervalSec) {
+  const maxAttempts = Math.ceil(timeoutSec / retryIntervalSec);
 
   for (let i = 0; i < maxAttempts; i++) {
-    sleep(pollInterval);
-
-    const res = http.get(
-      `${BASE_URL}/api/waiting-room/acquire?formType=${encodeURIComponent(formType)}`,
-      {
-        headers: commonHeaders,
-        // tag `page` ทำให้ปรากฏใน section "อื่น ๆ" ของ log
-        tags: { page: '/api/waiting-room/acquire', page_type: 'waiting-room-api', form_type: formType },
-      }
-    );
-
-    let data;
-    try { data = JSON.parse(res.body); } catch { continue; }
-    if (data.ok === true) return true;
+    sleep(retryIntervalSec);
+    const res = getPage(path, pageType);
+    if (!isWaitingRoomPage(res.body)) return res;
   }
-  return false;
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main VU function
 // ─────────────────────────────────────────────────────────────────────────────
 export default function () {
+  // ── Jitter: กระจาย VU ไม่ให้ชนพร้อมกันตอนเริ่ม ────────────────────────────
+  // สำคัญมากสำหรับ shared_200/shared_250 ที่ VU ทั้งหมด start พร้อมกัน
+  if (JITTER_SEC > 0) {
+    sleep(randomIntBetween(0, JITTER_SEC * 10) / 10);
+  }
+
   // ── Step 1: หน้า index ──────────────────────────────────────────────────────
-  const indexRes = getPage('/', 'index');
+  let indexRes = getPage('/', 'index');
+
+  // ถ้า index ติด CF Waiting Room ให้ retry จนผ่าน
+  if (isWaitingRoomPage(indexRes.body)) {
+    waitingRoomHits.add(1, { form_type: 'index' });
+    if (isCfNativeWrPage(indexRes.body)) {
+      cfNativeWrHits.add(1, { form_type: 'index' });
+      console.log(`[VU ${__VU}][iter ${__ITER}] CF NATIVE WR on index — "Waiting Room powered by Cloudflare" detected`);
+    } else {
+      console.log(`[VU ${__VU}][iter ${__ITER}] CF WR on index — retrying...`);
+    }
+    const passed = waitForPage('/', 'index', WR_TIMEOUT_SEC, WR_RETRY_SEC);
+    if (!passed) {
+      console.warn(`[VU ${__VU}][iter ${__ITER}] WR timeout on index — skipping`);
+      return;
+    }
+    indexRes = passed;
+  }
+
   check(indexRes, {
     'index: status 200':     (r) => r.status === 200,
     'index: has form links': (r) => r.body && r.body.includes('/form/'),
@@ -215,22 +264,25 @@ export default function () {
   // ── Step 3: เปิดหน้าฟอร์ม ───────────────────────────────────────────────────
   let formPageRes = getPage(`/form/${formType}`, 'form-page');
 
-  // ── Step 3b: จัดการ Waiting Room ────────────────────────────────────────────
+  // ── Step 3b: จัดการ CF Waiting Room ─────────────────────────────────────────
+  // retry GET /form/{type} ตรงๆ จนผ่าน (ไม่ poll /api/waiting-room/acquire อีกต่อไป)
   if (isWaitingRoomPage(formPageRes.body)) {
-    // นับว่าเจอ waiting room กี่ครั้ง (แยก tag ตาม formType เพื่อดูใน log)
     waitingRoomHits.add(1, { form_type: formType });
+    if (isCfNativeWrPage(formPageRes.body)) {
+      cfNativeWrHits.add(1, { form_type: formType });
+      console.log(`[VU ${__VU}][iter ${__ITER}] CF NATIVE WR — "Waiting Room powered by Cloudflare" — formType: ${formType}, retrying every ${WR_RETRY_SEC}s...`);
+    } else {
+      console.log(`[VU ${__VU}][iter ${__ITER}] CF WR — formType: ${formType}, retrying every ${WR_RETRY_SEC}s (timeout: ${WR_TIMEOUT_SEC}s)...`);
+    }
 
-    console.log(`[VU ${__VU}][iter ${__ITER}] waiting room — formType: ${formType}, polling...`);
+    const passed = waitForPage(`/form/${formType}`, 'form-page', WR_TIMEOUT_SEC, WR_RETRY_SEC);
 
-    const gotSlot = waitForSlot(formType, 60);
-
-    if (!gotSlot) {
-      console.warn(`[VU ${__VU}][iter ${__ITER}] waiting room timeout — skipping ${formType}`);
+    if (!passed) {
+      console.warn(`[VU ${__VU}][iter ${__ITER}] WR timeout — skipping ${formType}`);
       return;
     }
 
-    // ได้ slot → เปิดหน้าฟอร์มอีกครั้ง
-    formPageRes = getPage(`/form/${formType}`, 'form-page');
+    formPageRes = passed;
   }
 
   check(formPageRes, {
