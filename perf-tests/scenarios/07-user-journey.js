@@ -185,20 +185,37 @@ function postSubmit(formType, payload) {
   });
 }
 
-/** ตรวจว่าเป็นหน้า CF native Waiting Room ("Waiting Room powered by Cloudflare") */
-function isCfNativeWrPage(body) {
-  if (!body) return false;
+/**
+ * ตรวจว่าเป็นหน้า CF native Waiting Room
+ * - status 202 = CF WR (บาง config ส่ง 202 Accepted)
+ * - body มี "Waiting Room powered by Cloudflare" หรือ "waitingrooms-text"
+ * รับได้ทั้ง response object หรือ body string
+ */
+function isCfNativeWrPage(resOrBody) {
+  if (!resOrBody) return false;
+  // ถ้าเป็น response object
+  if (typeof resOrBody === 'object' && resOrBody.status !== undefined) {
+    if (resOrBody.status === 202) return true;
+    const body = resOrBody.body || '';
+    return body.includes('Waiting Room powered by Cloudflare') || body.includes('waitingrooms-text');
+  }
+  // ถ้าเป็น body string (backward compat)
   return (
-    body.includes('Waiting Room powered by Cloudflare') ||
-    body.includes('waitingrooms-text')
+    resOrBody.includes('Waiting Room powered by Cloudflare') ||
+    resOrBody.includes('waitingrooms-text')
   );
 }
 
-/** ตรวจว่าเป็นหน้า Waiting Room (ทั้ง CF native และ custom) */
-function isWaitingRoomPage(body) {
+/**
+ * ตรวจว่าเป็นหน้า Waiting Room (ทั้ง CF native และ custom)
+ * รับได้ทั้ง response object หรือ body string
+ */
+function isWaitingRoomPage(resOrBody) {
+  if (!resOrBody) return false;
+  if (isCfNativeWrPage(resOrBody)) return true;
+  const body = (typeof resOrBody === 'object' && resOrBody.body !== undefined) ? resOrBody.body : resOrBody;
   if (!body) return false;
   return (
-    isCfNativeWrPage(body) ||
     body.includes('waiting-room') ||
     body.includes('ผู้เข้าใช้เต็ม') ||
     body.includes('ระบบยุ่ง')
@@ -216,7 +233,7 @@ function waitForPage(path, pageType, timeoutSec, retryIntervalSec) {
   for (let i = 0; i < maxAttempts; i++) {
     sleep(retryIntervalSec);
     const res = getPage(path, pageType);
-    if (!isWaitingRoomPage(res.body)) return res;
+    if (!isWaitingRoomPage(res)) return res;
   }
   return null;
 }
@@ -235,9 +252,9 @@ export default function () {
   let indexRes = getPage('/', 'index');
 
   // ถ้า index ติด CF Waiting Room ให้ retry จนผ่าน
-  if (isWaitingRoomPage(indexRes.body)) {
+  if (isWaitingRoomPage(indexRes)) {
     waitingRoomHits.add(1, { form_type: 'index' });
-    if (isCfNativeWrPage(indexRes.body)) {
+    if (isCfNativeWrPage(indexRes)) {
       cfNativeWrHits.add(1, { form_type: 'index' });
       console.log(`[VU ${__VU}][iter ${__ITER}] CF NATIVE WR on index — "Waiting Room powered by Cloudflare" detected`);
     } else {
@@ -266,9 +283,9 @@ export default function () {
 
   // ── Step 3b: จัดการ CF Waiting Room ─────────────────────────────────────────
   // retry GET /form/{type} ตรงๆ จนผ่าน (ไม่ poll /api/waiting-room/acquire อีกต่อไป)
-  if (isWaitingRoomPage(formPageRes.body)) {
+  if (isWaitingRoomPage(formPageRes)) {
     waitingRoomHits.add(1, { form_type: formType });
-    if (isCfNativeWrPage(formPageRes.body)) {
+    if (isCfNativeWrPage(formPageRes)) {
       cfNativeWrHits.add(1, { form_type: formType });
       console.log(`[VU ${__VU}][iter ${__ITER}] CF NATIVE WR — "Waiting Room powered by Cloudflare" — formType: ${formType}, retrying every ${WR_RETRY_SEC}s...`);
     } else {
@@ -316,7 +333,7 @@ export default function () {
     // ตรวจว่า response เป็น HTML (submit endpoint คาดหวัง JSON เสมอ)
     // ถ้าได้ HTML กลับมา = ถูก Waiting Room (custom หรือ CF) intercept
     const isHtml = body.trimStart().startsWith('<');
-    if (isHtml || isWaitingRoomPage(body)) {
+    if (isHtml || isWaitingRoomPage(submitRes)) {
       submitWaitingRoomHits.add(1, { form_type: formType });
       console.warn(`[VU ${__VU}][iter ${__ITER}] submit got waiting-room HTML — formType: ${formType}, status: ${submitRes.status}`);
     } else {

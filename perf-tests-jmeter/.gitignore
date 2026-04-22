@@ -1,0 +1,8 @@
+# JMeter results output
+results/*.jtl
+results/*.csv
+results/*.txt
+results/*-report-*/
+
+# Keep results dir
+!results/.gitkeep

@@ -1,0 +1,459 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="11 - Waiting Room First-Hit" enabled="true">
+      <stringProp name="TestPlan.comments">CF Waiting Room first-hit measurement — 250 threads burst, classify ACTIVE vs QUEUE on first request, poll until slot acquired</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+
+      <!-- ═══ User Defined Variables ═══ -->
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Environment Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="BASE_URL" elementType="Argument">
+            <stringProp name="Argument.name">BASE_URL</stringProp>
+            <stringProp name="Argument.value">${__P(BASE_URL,https://formsystem.softdebut.online)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="LOAD_TEST_TOKEN" elementType="Argument">
+            <stringProp name="Argument.name">LOAD_TEST_TOKEN</stringProp>
+            <stringProp name="Argument.value">${__P(LOAD_TEST_TOKEN,dev-token)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="VUS" elementType="Argument">
+            <stringProp name="Argument.name">VUS</stringProp>
+            <stringProp name="Argument.value">${__P(VUS,250)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="POLL_TIMEOUT" elementType="Argument">
+            <stringProp name="Argument.name">POLL_TIMEOUT</stringProp>
+            <stringProp name="Argument.value">${__P(POLL_TIMEOUT,180)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+
+      <!-- ═══ HTTP Request Defaults ═══ -->
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
+        <stringProp name="HTTPSampler.domain">${__groovy(vars.get("BASE_URL").replaceAll("https?://",""),)}</stringProp>
+        <stringProp name="HTTPSampler.protocol">https</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+
+      <!-- ═══ HTTP Header Manager ═══ -->
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">X-Load-Test-Token</stringProp>
+            <stringProp name="Header.value">${LOAD_TEST_TOKEN}</stringProp>
+          </elementProp>
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">Accept</stringProp>
+            <stringProp name="Header.value">text/html</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree/>
+
+      <!-- ═══ HTTP Cookie Manager — per-thread, DO NOT clear each iteration ═══ -->
+      <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
+        <collectionProp name="CookieManager.cookies"/>
+        <boolProp name="CookieManager.clearEachIteration">false</boolProp>
+        <boolProp name="CookieManager.controlledByThreadGroup">false</boolProp>
+      </CookieManager>
+      <hashTree/>
+
+      <!-- ═══ Init counter props (once) ═══ -->
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="setUp - Init Counters" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" enabled="true">
+          <intProp name="LoopController.loops">1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Init Props" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script">
+props.put("active_first_hit", "0")
+props.put("queue_first_hit", "0")
+props.put("cf_native_wr_hits", "0")
+props.put("queue_to_active", "0")
+props.put("results_dir", "results")
+log.info("WR counters initialized")
+          </stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- Main Thread Group: VUS threads, ramp 0s, loop 1                   -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="WR First-Hit Burst" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" enabled="true">
+          <intProp name="LoopController.loops">1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${VUS}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+
+        <!-- CSV Data Set: random form type -->
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Form Types" enabled="true">
+          <stringProp name="delimiter">,</stringProp>
+          <stringProp name="fileEncoding">UTF-8</stringProp>
+          <stringProp name="filename">data/form-types-all.csv</stringProp>
+          <boolProp name="ignoreFirstLine">true</boolProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="variableNames">form_type</stringProp>
+        </CSVDataSet>
+        <hashTree/>
+
+        <!-- JSR223 PreProcessor: unique id -->
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Generate Unique ID" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename">groovy/unique-id.groovy</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script"></stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+
+        <!-- ── Step 1: GET / (index page) ── -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET / (index)" enabled="true">
+          <stringProp name="HTTPSampler.path">/</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+
+        <!-- Think time 1-2s -->
+        <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 1-2s" enabled="true">
+          <stringProp name="ConstantTimer.delay">1000</stringProp>
+          <stringProp name="RandomTimer.range">1000</stringProp>
+        </UniformRandomTimer>
+        <hashTree/>
+
+        <!-- ── Step 2: GET /form/${form_type} — FIRST HIT ── -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /form/${form_type} (FIRST HIT)" enabled="true">
+          <stringProp name="HTTPSampler.path">/form/${form_type}</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <!-- Detect WR (PostProcessor) -->
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Detect WR (first-hit)" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename">groovy/detect-wr.groovy</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script"></stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+
+        <!-- ════════════════════════════════════════════════════ -->
+        <!-- ACTIVE path: think → submit → done                  -->
+        <!-- ════════════════════════════════════════════════════ -->
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If ACTIVE" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "false",)}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s" enabled="true">
+            <stringProp name="ConstantTimer.delay">2000</stringProp>
+            <stringProp name="RandomTimer.range">2000</stringProp>
+          </UniformRandomTimer>
+          <hashTree/>
+
+          <!-- Build payload -->
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">
+def ft = vars.get("form_type")
+def id = vars.get("unique_id")
+vars.put("has_file", "false")
+vars.put("file_field", "")
+vars.put("file_path", "")
+vars.put("file_mime", "")
+switch (ft) {
+    case "contact": vars.put("extra_fields", "subject=Load test subject ${id}&amp;message=Automated load test ${id}"); break
+    case "job-application": vars.put("extra_fields", "position=Load Test Engineer&amp;experience=3"); vars.put("has_file","true"); vars.put("file_field","resume"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "complaint": vars.put("extra_fields", "category=สินค้าชำรุด&amp;description=Load test complaint ${id}"); vars.put("has_file","true"); vars.put("file_field","photos"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
+    case "event-registration": vars.put("extra_fields", "eventId=EVT-2026-001&amp;dietaryRequirement=ไม่มี&amp;tshirtSize=M"); break
+    case "product-inquiry": vars.put("extra_fields", "productCode=PRD-${ctx.getThreadNum()}&amp;quantity=10&amp;message=Load test ${id}"); break
+    case "warranty-claim": vars.put("extra_fields", "serialNumber=SN-2024-${id}&amp;issue=Load test warranty ${id}"); vars.put("has_file","true"); vars.put("file_field","receipt"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "newsletter": vars.put("extra_fields", "interests=เทคโนโลยี&amp;frequency=ทุกสัปดาห์"); break
+    case "feedback": vars.put("extra_fields", "rating=4&amp;category=บริการ&amp;comment=Load test ${id}"); break
+    case "partnership": vars.put("extra_fields", "companyName=LoadTest Corp ${id}&amp;businessType=เทคโนโลยี"); vars.put("has_file","true"); vars.put("file_field","companyProfile"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "incident-report": vars.put("extra_fields", "location=Location ${ctx.getThreadNum()}&amp;incidentType=ความปลอดภัย&amp;description=Load test incident ${id}"); vars.put("has_file","true"); vars.put("file_field","evidence"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
+    default: vars.put("extra_fields", "")
+}
+            </stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+
+          <!-- POST /submit/${form_type} -->
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /submit/${form_type} (active)" enabled="true">
+            <stringProp name="HTTPSampler.path">/submit/${form_type}</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="fullName" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">fullName</stringProp><stringProp name="Argument.value">${full_name}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+                <elementProp name="email" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">email</stringProp><stringProp name="Argument.value">${email}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+                <elementProp name="phone" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">phone</stringProp><stringProp name="Argument.value">${phone}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+              </collectionProp>
+            </elementProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <!-- Dynamically attach extra fields + file -->
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Attach Extra Fields + File" enabled="true">
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="script">
+import org.apache.jmeter.protocol.http.util.HTTPFileArg
+def extra = vars.get("extra_fields") ?: ""
+extra.split("&amp;").findAll { it.contains("=") }.each { pair ->
+    def parts = pair.split("=", 2)
+    sampler.addArgument(parts[0], parts.size() > 1 ? parts[1] : "")
+}
+if (vars.get("has_file") == "true") {
+    sampler.setHTTPFiles([new HTTPFileArg(vars.get("file_path"), vars.get("file_field"), vars.get("file_mime"))] as HTTPFileArg[])
+} else {
+    sampler.setHTTPFiles([] as HTTPFileArg[])
+}
+              </stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
+
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert JSON ok + submission_id" enabled="true">
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="script">
+import groovy.json.JsonSlurper
+try {
+    def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
+    if (json.ok != true) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("ok != true") }
+    else if (!json.submission_id) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("no submission_id") }
+} catch (e) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("JSON error: ${e.message}") }
+              </stringProp>
+            </JSR223Assertion>
+            <hashTree/>
+          </hashTree>
+
+        </hashTree>
+
+        <!-- ════════════════════════════════════════════════════ -->
+        <!-- QUEUE path: poll until slot acquired → submit        -->
+        <!-- ════════════════════════════════════════════════════ -->
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If QUEUED" enabled="true">
+          <stringProp name="IfController.condition">${__groovy(vars.get("is_queued") == "true",)}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+
+          <!-- Record start time for timeout -->
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Record Poll Start Time" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">
+vars.put("poll_start", String.valueOf(System.currentTimeMillis()))
+vars.put("still_waiting", "true")
+            </stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+
+          <!-- While loop: poll GET /form/${form_type} until not WR -->
+          <WhileController guiclass="WhileControllerGui" testclass="WhileController" testname="Poll Until Slot Acquired" enabled="true">
+            <stringProp name="WhileController.condition">${__groovy(vars.get("still_waiting") == "true",)}</stringProp>
+          </WhileController>
+          <hashTree>
+
+            <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Poll Interval 3-5s" enabled="true">
+              <stringProp name="ConstantTimer.delay">3000</stringProp>
+              <stringProp name="RandomTimer.range">2000</stringProp>
+            </UniformRandomTimer>
+            <hashTree/>
+
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /form/${form_type} (poll)" enabled="true">
+              <stringProp name="HTTPSampler.path">/form/${form_type}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+                <collectionProp name="Arguments.arguments"/>
+              </elementProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <!-- Check if still in WR or acquired slot -->
+              <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Check WR Status" enabled="true">
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="script">
+def code = prev.getResponseCode()
+def body = prev.getResponseDataAsString() ?: ""
+def isWr = (code == "202") ||
+           body.contains("Waiting Room powered by Cloudflare") ||
+           body.contains("waitingrooms-text") ||
+           body.contains("waiting-room") ||
+           body.contains("\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e43\u0e0a\u0e49\u0e40\u0e15\u0e47\u0e21") ||
+           body.contains("\u0e23\u0e30\u0e1a\u0e1a\u0e22\u0e38\u0e48\u0e07")
+
+if (!isWr) {
+    vars.put("still_waiting", "false")
+    def elapsed = (System.currentTimeMillis() - (vars.get("poll_start") as long)) / 1000.0
+    synchronized (props) {
+        def q2a = (props.get("queue_to_active") ?: "0") as int
+        props.put("queue_to_active", String.valueOf(q2a + 1))
+    }
+    log.info("[Thread ${ctx.getThreadNum()}] ACQUIRED SLOT after ${String.format('%.1f', elapsed)}s")
+} else {
+    // Check timeout
+    def elapsed = System.currentTimeMillis() - (vars.get("poll_start") as long)
+    def timeout = (vars.get("POLL_TIMEOUT") ?: "180") as long
+    if (elapsed > timeout * 1000) {
+        vars.put("still_waiting", "false")
+        log.warn("[Thread ${ctx.getThreadNum()}] POLL TIMEOUT after ${elapsed/1000}s — giving up")
+    }
+}
+                </stringProp>
+              </JSR223PostProcessor>
+              <hashTree/>
+            </hashTree>
+
+          </hashTree>
+
+          <!-- After acquiring slot: think → submit -->
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s" enabled="true">
+            <stringProp name="ConstantTimer.delay">2000</stringProp>
+            <stringProp name="RandomTimer.range">2000</stringProp>
+          </UniformRandomTimer>
+          <hashTree/>
+
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload (queue)" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">
+def ft = vars.get("form_type")
+def id = vars.get("unique_id")
+vars.put("has_file", "false"); vars.put("file_field", ""); vars.put("file_path", ""); vars.put("file_mime", "")
+switch (ft) {
+    case "contact": vars.put("extra_fields", "subject=Load test ${id}&amp;message=Queue user ${id}"); break
+    case "job-application": vars.put("extra_fields", "position=Load Test Engineer&amp;experience=3"); vars.put("has_file","true"); vars.put("file_field","resume"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "complaint": vars.put("extra_fields", "category=สินค้าชำรุด&amp;description=Queue complaint ${id}"); vars.put("has_file","true"); vars.put("file_field","photos"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
+    case "event-registration": vars.put("extra_fields", "eventId=EVT-2026-001&amp;dietaryRequirement=ไม่มี&amp;tshirtSize=M"); break
+    case "product-inquiry": vars.put("extra_fields", "productCode=PRD-${ctx.getThreadNum()}&amp;quantity=10&amp;message=Queue ${id}"); break
+    case "warranty-claim": vars.put("extra_fields", "serialNumber=SN-2024-${id}&amp;issue=Queue warranty ${id}"); vars.put("has_file","true"); vars.put("file_field","receipt"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "newsletter": vars.put("extra_fields", "interests=เทคโนโลยี&amp;frequency=ทุกสัปดาห์"); break
+    case "feedback": vars.put("extra_fields", "rating=4&amp;category=บริการ&amp;comment=Queue ${id}"); break
+    case "partnership": vars.put("extra_fields", "companyName=LoadTest Corp ${id}&amp;businessType=เทคโนโลยี"); vars.put("has_file","true"); vars.put("file_field","companyProfile"); vars.put("file_path","data/files/mock.pdf"); vars.put("file_mime","application/pdf"); break
+    case "incident-report": vars.put("extra_fields", "location=Location ${ctx.getThreadNum()}&amp;incidentType=ความปลอดภัย&amp;description=Queue ${id}"); vars.put("has_file","true"); vars.put("file_field","evidence"); vars.put("file_path","data/files/mock.png"); vars.put("file_mime","image/png"); break
+    default: vars.put("extra_fields", "")
+}
+            </stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /submit/${form_type} (queued)" enabled="true">
+            <stringProp name="HTTPSampler.path">/submit/${form_type}</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="fullName" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">fullName</stringProp><stringProp name="Argument.value">${full_name}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+                <elementProp name="email" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">email</stringProp><stringProp name="Argument.value">${email}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+                <elementProp name="phone" elementType="HTTPArgument"><boolProp name="HTTPArgument.always_encode">false</boolProp><stringProp name="Argument.name">phone</stringProp><stringProp name="Argument.value">${phone}</stringProp><stringProp name="Argument.metadata">=</stringProp><boolProp name="HTTPArgument.use_equals">true</boolProp></elementProp>
+              </collectionProp>
+            </elementProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Attach Extra Fields + File" enabled="true">
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="script">
+import org.apache.jmeter.protocol.http.util.HTTPFileArg
+def extra = vars.get("extra_fields") ?: ""
+extra.split("&amp;").findAll { it.contains("=") }.each { pair ->
+    def parts = pair.split("=", 2)
+    sampler.addArgument(parts[0], parts.size() > 1 ? parts[1] : "")
+}
+if (vars.get("has_file") == "true") {
+    sampler.setHTTPFiles([new HTTPFileArg(vars.get("file_path"), vars.get("file_field"), vars.get("file_mime"))] as HTTPFileArg[])
+} else {
+    sampler.setHTTPFiles([] as HTTPFileArg[])
+}
+              </stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
+          </hashTree>
+
+        </hashTree>
+
+      </hashTree>
+
+      <!-- ═══ tearDown: write WR summary ═══ -->
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="tearDown - WR Summary" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" enabled="true">
+          <intProp name="LoopController.loops">1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+      </PostThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Write WR Summary" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename">groovy/wr-summary.groovy</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script"></stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+
+      <!-- ═══ Listeners ═══ -->
+      <ResultCollector guiclass="SimpleDataWriter" testclass="ResultCollector" testname="Simple Data Writer" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp><name>saveConfig</name><value class="SampleSaveConfiguration"><time>true</time><latency>true</latency><timestamp>true</timestamp><success>true</success><label>true</label><code>true</code><message>true</message><threadName>true</threadName><bytes>true</bytes><connectTime>true</connectTime><fieldNames>true</fieldNames></value></objProp>
+        <stringProp name="filename">results/wr-first-hit.jtl</stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+      <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp><name>saveConfig</name><value class="SampleSaveConfiguration"><time>true</time><latency>true</latency><timestamp>true</timestamp><success>true</success><label>true</label><code>true</code></value></objProp>
+        <stringProp name="filename">results/wr-aggregate.csv</stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

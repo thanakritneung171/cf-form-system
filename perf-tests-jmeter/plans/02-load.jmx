@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="02 - Load Test" enabled="true">
+      <stringProp name="TestPlan.comments">Load Test — ramp 0-5-10 VU over 16 min, random form types (maps to k6 02-load.js)</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+
+      <!-- ═══ User Defined Variables ═══ -->
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Environment Variables" enabled="true">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="BASE_URL" elementType="Argument">
+            <stringProp name="Argument.name">BASE_URL</stringProp>
+            <stringProp name="Argument.value">${__P(BASE_URL,https://formsystem.softdebut.online)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="LOAD_TEST_TOKEN" elementType="Argument">
+            <stringProp name="Argument.name">LOAD_TEST_TOKEN</stringProp>
+            <stringProp name="Argument.value">${__P(LOAD_TEST_TOKEN,dev-token)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+
+      <!-- ═══ HTTP Request Defaults ═══ -->
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
+        <stringProp name="HTTPSampler.domain">${__groovy(vars.get("BASE_URL").replaceAll("https?://",""),)}</stringProp>
+        <stringProp name="HTTPSampler.protocol">https</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">10000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
+      </ConfigTestElement>
+      <hashTree/>
+
+      <!-- ═══ HTTP Header Manager ═══ -->
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">X-Load-Test-Token</stringProp>
+            <stringProp name="Header.value">${LOAD_TEST_TOKEN}</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree/>
+
+      <!-- ═══ HTTP Cookie Manager ═══ -->
+      <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
+        <collectionProp name="CookieManager.cookies"/>
+        <boolProp name="CookieManager.clearEachIteration">false</boolProp>
+        <boolProp name="CookieManager.controlledByThreadGroup">false</boolProp>
+      </CookieManager>
+      <hashTree/>
+
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <!-- Thread Group: stages 0->5 (2m), hold 10 (10m), ramp down (2m)    -->
+      <!-- Uses standard Thread Group. For Ultimate Thread Group install      -->
+      <!-- jpgc-casutg plugin and replace this block.                         -->
+      <!-- ═══════════════════════════════════════════════════════════════════ -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Load - Mixed Forms" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <intProp name="LoopController.loops">-1</intProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">10</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">120</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">960</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+
+        <!-- CSV Data Set: random form type -->
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Form Types" enabled="true">
+          <stringProp name="delimiter">,</stringProp>
+          <stringProp name="fileEncoding">UTF-8</stringProp>
+          <stringProp name="filename">data/form-types-all.csv</stringProp>
+          <boolProp name="ignoreFirstLine">true</boolProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="variableNames">form_type</stringProp>
+        </CSVDataSet>
+        <hashTree/>
+
+        <!-- JSR223 PreProcessor: unique id -->
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Generate Unique ID" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename">groovy/unique-id.groovy</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script"></stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+
+        <!-- JSR223 PreProcessor: build dynamic payload per form_type -->
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Dynamic Payload" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script">
+// Build form-specific fields based on form_type
+def ft = vars.get("form_type")
+def id = vars.get("unique_id")
+
+// Reset optional fields
+vars.put("has_file", "false")
+vars.put("file_field", "")
+vars.put("file_path", "")
+vars.put("file_mime", "")
+
+// Extra fields per form type
+switch (ft) {
+    case "contact":
+        vars.put("extra_fields", "subject=Load test subject ${id}&amp;message=Automated load test message ${id}")
+        break
+    case "job-application":
+        vars.put("extra_fields", "position=Load Test Engineer&amp;experience=3")
+        vars.put("has_file", "true")
+        vars.put("file_field", "resume")
+        vars.put("file_path", "data/files/mock.pdf")
+        vars.put("file_mime", "application/pdf")
+        break
+    case "complaint":
+        vars.put("extra_fields", "category=\u0e2a\u0e34\u0e19\u0e04\u0e49\u0e32\u0e0a\u0e33\u0e23\u0e38\u0e14&amp;description=Load test complaint ${id}")
+        vars.put("has_file", "true")
+        vars.put("file_field", "photos")
+        vars.put("file_path", "data/files/mock.png")
+        vars.put("file_mime", "image/png")
+        break
+    case "event-registration":
+        vars.put("extra_fields", "eventId=EVT-2026-001: Annual Conference&amp;dietaryRequirement=\u0e44\u0e21\u0e48\u0e21\u0e35&amp;tshirtSize=M")
+        break
+    case "product-inquiry":
+        vars.put("extra_fields", "productCode=PRD-${String.format('%05d', ctx.getThreadNum())}&amp;quantity=10&amp;message=Load test inquiry ${id}")
+        break
+    case "warranty-claim":
+        def sn = "SN-2024-${id.replaceAll('-','').take(8).toUpperCase()}"
+        vars.put("extra_fields", "serialNumber=${sn}&amp;issue=Load test warranty issue ${id}")
+        vars.put("has_file", "true")
+        vars.put("file_field", "receipt")
+        vars.put("file_path", "data/files/mock.pdf")
+        vars.put("file_mime", "application/pdf")
+        break
+    case "newsletter":
+        vars.put("extra_fields", "interests=\u0e40\u0e17\u0e04\u0e42\u0e19\u0e42\u0e25\u0e22\u0e35&amp;interests=\u0e18\u0e38\u0e23\u0e01\u0e34\u0e08&amp;frequency=\u0e17\u0e38\u0e01\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c")
+        break
+    case "feedback":
+        vars.put("extra_fields", "rating=4&amp;category=\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23&amp;comment=Load test feedback ${id}")
+        break
+    case "partnership":
+        vars.put("extra_fields", "companyName=LoadTest Corp ${id}&amp;businessType=\u0e40\u0e17\u0e04\u0e42\u0e19\u0e42\u0e25\u0e22\u0e35")
+        vars.put("has_file", "true")
+        vars.put("file_field", "companyProfile")
+        vars.put("file_path", "data/files/mock.pdf")
+        vars.put("file_mime", "application/pdf")
+        break
+    case "incident-report":
+        vars.put("extra_fields", "location=Load Test Location ${ctx.getThreadNum()}&amp;incidentType=\u0e04\u0e27\u0e32\u0e21\u0e1b\u0e25\u0e2d\u0e14\u0e20\u0e31\u0e22&amp;description=Load test incident ${id}")
+        vars.put("has_file", "true")
+        vars.put("file_field", "evidence")
+        vars.put("file_path", "data/files/mock.png")
+        vars.put("file_mime", "image/png")
+        break
+    default:
+        vars.put("extra_fields", "")
+}
+          </stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+
+        <!-- HTTP Request: POST /submit/${form_type} -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /submit/${form_type}" enabled="true">
+          <stringProp name="HTTPSampler.path">/submit/${form_type}</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" enabled="true">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="fullName" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.name">fullName</stringProp>
+                <stringProp name="Argument.value">${full_name}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+              </elementProp>
+              <elementProp name="email" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.name">email</stringProp>
+                <stringProp name="Argument.value">${email}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+              </elementProp>
+              <elementProp name="phone" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.name">phone</stringProp>
+                <stringProp name="Argument.value">${phone}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+
+          <!-- JSR223 PreProcessor: attach extra fields + file dynamically -->
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Attach Extra Fields + File" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">
+import org.apache.jmeter.protocol.http.util.HTTPFileArg
+
+def sampler = sampler  // current HTTPSamplerProxy
+
+// Add extra form fields
+def extra = vars.get("extra_fields") ?: ""
+extra.split("&amp;").findAll { it.contains("=") }.each { pair ->
+    def parts = pair.split("=", 2)
+    def arg = new org.apache.jmeter.protocol.http.util.HTTPArgument(parts[0], parts.size() > 1 ? parts[1] : "")
+    arg.setAlwaysEncoded(false)
+    sampler.getArguments().addArgument(arg)
+}
+
+// Attach file if needed
+if (vars.get("has_file") == "true") {
+    def fileField = vars.get("file_field")
+    def filePath  = vars.get("file_path")
+    def fileMime  = vars.get("file_mime")
+    sampler.setHTTPFiles([new HTTPFileArg(filePath, fileField, fileMime)] as HTTPFileArg[])
+} else {
+    sampler.setHTTPFiles([] as HTTPFileArg[])
+}
+            </stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+
+          <!-- Response Assertion: status 200 -->
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert Status 200" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Expected status 200</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+
+          <!-- JSR223 Assertion: JSON ok -->
+          <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert JSON ok" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="script">
+import groovy.json.JsonSlurper
+try {
+    def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
+    if (json.ok != true) {
+        AssertionResult.setFailure(true)
+        AssertionResult.setFailureMessage("ok is not true")
+    }
+} catch (Exception e) {
+    AssertionResult.setFailure(true)
+    AssertionResult.setFailureMessage("JSON parse error: ${e.message}")
+}
+            </stringProp>
+          </JSR223Assertion>
+          <hashTree/>
+
+        </hashTree>
+
+        <!-- Constant Timer: 500ms -->
+        <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Think Time 500ms" enabled="true">
+          <stringProp name="ConstantTimer.delay">500</stringProp>
+        </ConstantTimer>
+        <hashTree/>
+
+      </hashTree>
+
+      <!-- ═══ Listeners ═══ -->
+      <ResultCollector guiclass="SimpleDataWriter" testclass="ResultCollector" testname="Simple Data Writer" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time><latency>true</latency><timestamp>true</timestamp>
+            <success>true</success><label>true</label><code>true</code>
+            <message>true</message><threadName>true</threadName>
+            <bytes>true</bytes><sentBytes>true</sentBytes><url>true</url>
+            <connectTime>true</connectTime><fieldNames>true</fieldNames>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/load.jtl</stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+      <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time><latency>true</latency><timestamp>true</timestamp>
+            <success>true</success><label>true</label><code>true</code>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/load-aggregate.csv</stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
