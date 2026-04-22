@@ -116,6 +116,7 @@ Active users (first-hit)  : 200
 Queued users (first-hit)  : 50
 CF Native WR hits         : 50
 Queue -> Active later     : 48
+Queue timed out           : 2
 ```
 
 ## File Structure
@@ -137,6 +138,8 @@ perf-tests-jmeter/
 │       └── mock.png            # 1x1 red pixel PNG (~67 bytes)
 ├── groovy/
 │   ├── unique-id.groovy        # PreProcessor: generate unique id per request
+│   ├── build-payload.groovy    # PreProcessor: set extra_fields + file per form_type (shared)
+│   ├── attach-fields.groovy    # PreProcessor: attach extra_fields + file to sampler (shared)
 │   ├── detect-wr.groovy        # PostProcessor: detect CF Waiting Room
 │   └── wr-summary.groovy       # tearDown: write WR counter summary
 ├── results/                    # JTL output + reports (gitignored)
