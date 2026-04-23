@@ -90,6 +90,7 @@ props.put("queue_first_hit", "0")
 props.put("cf_native_wr_hits", "0")
 props.put("queue_to_active", "0")
 props.put("queue_timeout", "0")
+props.put("submit_waiting_room_hits", "0")
 props.put("results_dir", "results")
 log.info("WR counters initialized")
           </stringProp>
@@ -185,19 +186,27 @@ log.info("WR counters initialized")
         </IfController>
         <hashTree>
 
-          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s" enabled="true">
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s (post-first-hit)" enabled="true">
             <stringProp name="ConstantTimer.delay">2000</stringProp>
             <stringProp name="RandomTimer.range">2000</stringProp>
           </UniformRandomTimer>
           <hashTree/>
 
           <!-- Build payload (shared file: groovy/build-payload.groovy) -->
+          <!-- Also sets submit_think_min_ms / submit_think_range_ms based on has_file -->
           <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload" enabled="true">
             <stringProp name="cacheKey">true</stringProp>
             <stringProp name="filename">groovy/build-payload.groovy</stringProp>
             <stringProp name="scriptLanguage">groovy</stringProp>
             <stringProp name="script"></stringProp>
           </JSR223PreProcessor>
+          <hashTree/>
+
+          <!-- Second think time (matches k6 submitAndCheck): 2-5s non-file, 3-7s with file -->
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Submit Think (dynamic)" enabled="true">
+            <stringProp name="ConstantTimer.delay">${submit_think_min_ms}</stringProp>
+            <stringProp name="RandomTimer.range">${submit_think_range_ms}</stringProp>
+          </UniformRandomTimer>
           <hashTree/>
 
           <!-- POST /submit/${form_type} -->
@@ -223,17 +232,11 @@ log.info("WR counters initialized")
             </JSR223PreProcessor>
             <hashTree/>
 
-            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert JSON ok + submission_id" enabled="true">
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert submit + count WR-blocked" enabled="true">
               <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="filename">groovy/submit-assert.groovy</stringProp>
               <stringProp name="scriptLanguage">groovy</stringProp>
-              <stringProp name="script">
-import groovy.json.JsonSlurper
-try {
-    def json = new JsonSlurper().parseText(prev.getResponseDataAsString())
-    if (json.ok != true) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("ok != true") }
-    else if (!json.submission_id) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("no submission_id") }
-} catch (e) { AssertionResult.setFailure(true); AssertionResult.setFailureMessage("JSON error: ${e.message}") }
-              </stringProp>
+              <stringProp name="script"></stringProp>
             </JSR223Assertion>
             <hashTree/>
           </hashTree>
@@ -288,14 +291,12 @@ vars.put("still_waiting", "true")
                 <stringProp name="cacheKey">true</stringProp>
                 <stringProp name="scriptLanguage">groovy</stringProp>
                 <stringProp name="script">
-def code = prev.getResponseCode()
 def body = prev.getResponseDataAsString() ?: ""
-def isWr = (code == "202") ||
-           body.contains("Waiting Room powered by Cloudflare") ||
+// Match k6 isWaitingRoomPage — CF native markers + custom WR strings only
+def isWr = body.contains("Waiting Room powered by Cloudflare") ||
            body.contains("waitingrooms-text") ||
-           body.contains("waiting-room") ||
-           body.contains("\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e43\u0e0a\u0e49\u0e40\u0e15\u0e47\u0e21") ||
-           body.contains("\u0e23\u0e30\u0e1a\u0e1a\u0e22\u0e38\u0e48\u0e07")
+           body.contains("\u0e04\u0e38\u0e13\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e04\u0e34\u0e27") ||
+           body.contains("\u0e1c\u0e39\u0e49\u0e40\u0e02\u0e49\u0e32\u0e43\u0e0a\u0e49\u0e40\u0e15\u0e47\u0e21")
 
 if (!isWr) {
     vars.put("still_waiting", "false")
@@ -326,18 +327,26 @@ if (!isWr) {
           </hashTree>
 
           <!-- After acquiring slot: think → submit -->
-          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s" enabled="true">
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think 2-4s (post-acquire)" enabled="true">
             <stringProp name="ConstantTimer.delay">2000</stringProp>
             <stringProp name="RandomTimer.range">2000</stringProp>
           </UniformRandomTimer>
           <hashTree/>
 
+          <!-- Build payload also sets submit_think_min_ms / submit_think_range_ms -->
           <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Build Submit Payload (queue)" enabled="true">
             <stringProp name="cacheKey">true</stringProp>
             <stringProp name="filename">groovy/build-payload.groovy</stringProp>
             <stringProp name="scriptLanguage">groovy</stringProp>
             <stringProp name="script"></stringProp>
           </JSR223PreProcessor>
+          <hashTree/>
+
+          <!-- Second think time (matches k6 submitAndCheck): 2-5s non-file, 3-7s with file -->
+          <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Submit Think (dynamic)" enabled="true">
+            <stringProp name="ConstantTimer.delay">${submit_think_min_ms}</stringProp>
+            <stringProp name="RandomTimer.range">${submit_think_range_ms}</stringProp>
+          </UniformRandomTimer>
           <hashTree/>
 
           <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /submit/${form_type} (queued)" enabled="true">
@@ -359,6 +368,14 @@ if (!isWr) {
               <stringProp name="scriptLanguage">groovy</stringProp>
               <stringProp name="script"></stringProp>
             </JSR223PreProcessor>
+            <hashTree/>
+
+            <JSR223Assertion guiclass="TestBeanGUI" testclass="JSR223Assertion" testname="Assert submit + count WR-blocked" enabled="true">
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="filename">groovy/submit-assert.groovy</stringProp>
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="script"></stringProp>
+            </JSR223Assertion>
             <hashTree/>
           </hashTree>
 

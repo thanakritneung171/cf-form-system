@@ -65,3 +65,16 @@ switch (ft) {
     default:
         vars.put("extra_fields", "")
 }
+
+// Submit think time (match k6 submitAndCheck):
+//   hasFile  → thinkTime(3, 7)s
+//   !hasFile → thinkTime(2, 5)s
+// base = min*1000, range = (max-min)*1000
+if (vars.get("has_file") == "true") {
+    vars.put("submit_think_min_ms",   "3000")
+    vars.put("submit_think_range_ms", "4000")
+} else {
+    vars.put("submit_think_min_ms",   "2000")
+    vars.put("submit_think_range_ms", "3000")
+}
+
