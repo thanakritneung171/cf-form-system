@@ -404,6 +404,9 @@ viewer   → ดูอย่างเดียว
 | Users | `/admin/users` | CRUD users (admin only) |
 | Webhooks | `/admin/webhooks` | CRUD + test + delivery log (admin only) |
 | Profile | `/admin/profile` | เปลี่ยน password |
+| Load Test | `/loadtest` | ส่ง submissions จำลองปริมาณมาก เพื่อทดสอบ (admin/operator) |
+| Clear Data | `/admin/clear-data` | ล้างข้อมูลทดสอบ: submissions, R2 files, sessions, webhook deliveries (admin only) |
+| Waiting Room | `/admin/waiting-room` | ดูสถานะ Cloudflare Waiting Room แบบ realtime · ต้องตั้ง env vars เสริม |
 
 ---
 
@@ -490,6 +493,16 @@ submissions/2026-04-08/abc-123/evidence-1.jpg
 | `DISPATCH_*` | Queue Binding | W2 | 10 dispatch queue producers |
 | `WEBHOOK_QUEUE` | Queue Binding | W1, W2 | Webhook queue producer |
 
+**เสริม (Optional — สำหรับ Waiting Room Dashboard):**
+
+| ชื่อ | ประเภท | Worker | คำอธิบาย |
+|------|--------|--------|----------|
+| `CF_API_TOKEN` | Secret | W1 | Cloudflare API Token อ่านสถานะ Waiting Room |
+| `CF_ZONE_ID` | Var | W1 | Zone ID ของ domain |
+| `CF_WAITING_ROOM_ID` | Var | W1 | ID ของ Waiting Room ที่ต้องการ monitor |
+
+> ถ้าไม่ตั้งค่า env vars เหล่านี้ หน้า `/admin/waiting-room` จะยังทำงานได้แต่ไม่แสดงสถานะ CF API
+
 ---
 
 ## โครงสร้างไฟล์โปรเจค
@@ -518,7 +531,9 @@ cf-form-system/
 │   │   │       ├── users.ts       ← user management (warm badge styling)
 │   │   │       ├── webhooks.ts    ← webhook management
 │   │   │       ├── queues.ts      ← queue stats (refresh bar + accent colors)
-│   │   │       └── loadtest.ts    ← load test page
+│   │   │       ├── loadtest.ts    ← load test page (admin/operator)
+│   │   │       ├── clear-data.ts  ← ล้างข้อมูลทดสอบ D1 + R2 (admin only)
+│   │   │       └── waiting-room-dashboard.ts ← ดูสถานะ CF Waiting Room (optional)
 │   │   ├── wrangler.jsonc    ← bindings: D1, R2, 11 queues, cron
 │   │   └── tsconfig.json
 │   │
@@ -550,6 +565,21 @@ cf-form-system/
 ├── pnpm-workspace.yaml
 └── package.json              ← scripts: dev, deploy, typegen, db:migrate
 ```
+
+---
+
+## Performance Improvements
+
+ระบบผ่านการ tune ประสิทธิภาพ 4 รอบ — จาก ~3 req/sec เป็น **50–150+ req/sec**
+
+| รอบ | การเปลี่ยนแปลง | ผล |
+|-----|---------------|-----|
+| Round 1 | sendBatch chunking (chunk 100/batch) | แก้ Payload Too Large + D1 variable limit |
+| Round 2 | Sequential → `Promise.all` ทุกจุด (queue consumer, R2 fetch, webhook) | +10–20x throughput ต่อ batch |
+| Round 3 | Dispatch queue config tuning (batch_timeout 10s→2s, concurrency ×2) | ลด wait time 5–10x |
+| Round 4 | D1 indexes, parallel cron recovery, batch INSERT files, parallel fireWebhook | ลด query time 10–100x |
+
+ดูรายละเอียดเต็มใน [docs/performance-improvements.md](docs/performance-improvements.md)
 
 ---
 
